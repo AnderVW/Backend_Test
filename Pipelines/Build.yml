@@ -1,0 +1,37 @@
+name: viwear$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+
+pool: 'ViWear'
+
+variables:
+  - name: APP_VERSION
+    value: $(Build.BuildNumber)
+
+steps:
+  - task: Bash@3
+    displayName: Show kubernetes stats
+    inputs:
+      targetType: 'inline'
+      script: |
+        kubectl cluster-info
+
+  - task: Docker@2
+    displayName: Build the website image
+    inputs:
+      containerRegistry: 'DockerHub'
+      workingDirectory: sites/viwear
+      repository: denbee/website-viwear
+      command: buildAndPush
+      dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+      tags: $(Build.BuildNumber)
+
+  - task: Bash@3
+    displayName: Deploy site
+    inputs:
+      workingDirectory: '$(Build.SourcesDirectory)/Pipelines'
+      targetType: 'inline'
+      script: |
+        cat deployment.yml | envsubst | kubectl apply -f -
+    env:
+      APP_VERSION: $(Build.BuildNumber)

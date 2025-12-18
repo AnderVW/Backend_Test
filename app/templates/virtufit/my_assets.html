@@ -1,0 +1,973 @@
+{% extends "bases/base.html" %}
+
+{% block title %}My Assets - ViWear{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">My Assets</h1>
+            <p class="mt-1 text-sm text-gray-500">Manage your uploaded images</p>
+        </div>
+        <div class="flex gap-3">
+            <button id="openUploadModal" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Upload Clothing
+            </button>
+            <button id="openBodyUploadModal" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Upload Body Image
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-12">
+        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+        <p class="mt-2 text-sm text-gray-500">Loading assets...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No assets</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by uploading your first image.</p>
+    </div>
+
+    <!-- Assets Sections -->
+    <div id="assetsSections" class="space-y-6 hidden">
+        
+        <!-- Clothing Items Section -->
+        <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-6 border border-blue-200/50 shadow-sm">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900">Clothing Items</h2>
+            </div>
+            <div id="itemsContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                <!-- Items will be loaded here -->
+            </div>
+            <div id="itemsEmpty" class="hidden text-center py-8 text-blue-700">
+                <p>No clothing items uploaded yet</p>
+            </div>
+        </div>
+
+        <!-- Body Images Section -->
+        <div class="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl p-6 border border-purple-200/50 shadow-sm">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="bg-purple-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900">Body Images</h2>
+            </div>
+            <div id="bodyContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                <!-- Body images will be loaded here -->
+            </div>
+            <div id="bodyEmpty" class="hidden text-center py-8 text-purple-700">
+                <p>No body images uploaded yet</p>
+            </div>
+        </div>
+
+        <!-- Generated Images Section -->
+        <div class="bg-gradient-to-br from-green-50 to-emerald-100/50 rounded-2xl p-6 border border-green-200/50 shadow-sm">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="bg-gradient-to-br from-green-600 to-emerald-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900">Generated Images</h2>
+            </div>
+            <div id="generatedContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                <!-- Generated images will be loaded here -->
+            </div>
+            <div id="generatedEmpty" class="hidden text-center py-8 text-green-700">
+                <p>No generated images yet</p>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+    
+    <!-- Modal Content -->
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Upload Images</h2>
+                <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Drop Zone -->
+            <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <p class="mt-2 text-sm text-gray-600">
+                    <span class="font-medium text-blue-600">Click to select</span> or drag and drop
+                </p>
+                <p class="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB each (max 20 files)</p>
+                <input type="file" id="fileInput" class="hidden" accept="image/*" multiple>
+            </div>
+
+            <!-- Selected Files List -->
+            <div id="filesList" class="mt-4 space-y-2 max-h-64 overflow-y-auto hidden">
+                <!-- Files will be listed here -->
+            </div>
+
+            <!-- Upload Button -->
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancelUpload" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">
+                    Cancel
+                </button>
+                <button id="startUpload" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Upload Files
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Upload Body Image Modal -->
+<div id="uploadBodyModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+    
+    <!-- Modal Content -->
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Upload Body Image</h2>
+                <button id="closeBodyModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Drop Zone -->
+            <div id="bodyDropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-500 transition-colors cursor-pointer">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <p class="mt-2 text-sm text-gray-600">
+                    <span class="font-medium text-purple-600">Click to select</span> or drag and drop
+                </p>
+                <p class="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB (max 5 files)</p>
+                <input type="file" id="bodyFileInput" class="hidden" accept="image/*" multiple>
+            </div>
+
+            <!-- Selected Files List -->
+            <div id="bodyFilesList" class="mt-4 space-y-2 max-h-64 overflow-y-auto hidden">
+                <!-- Files will be listed here -->
+            </div>
+
+            <!-- Upload Button -->
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancelBodyUpload" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">
+                    Cancel
+                </button>
+                <button id="startBodyUpload" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Upload Files
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% load static %}
+<script src="{% static 'js/image-viewer.js' %}"></script>
+<script>
+// Global state
+const state = {
+    selectedFiles: [],
+    selectedBodyFiles: [],
+    itemAssets: [],
+    bodyAssets: [],
+    generatedAssets: [],
+    pollingIntervals: new Map(),
+    isUploading: false,
+    isBodyUploading: false
+};
+
+// DOM Elements
+const modal = document.getElementById('uploadModal');
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const filesList = document.getElementById('filesList');
+const startUploadBtn = document.getElementById('startUpload');
+const uploadBodyModal = document.getElementById('uploadBodyModal');
+const bodyDropZone = document.getElementById('bodyDropZone');
+const bodyFileInput = document.getElementById('bodyFileInput');
+const bodyFilesList = document.getElementById('bodyFilesList');
+const startBodyUploadBtn = document.getElementById('startBodyUpload');
+const assetsSections = document.getElementById('assetsSections');
+const emptyState = document.getElementById('emptyState');
+const loadingState = document.getElementById('loadingState');
+
+// Helper: Get CSRF token
+function getCSRFToken() {
+    return document.cookie.split('; ')
+        .find(row => row.startsWith('csrftoken='))
+        ?.split('=')[1];
+}
+
+// Helper: Format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Helper: Format date
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+
+// Modal controls
+document.getElementById('openUploadModal').addEventListener('click', () => {
+    modal.classList.remove('hidden');
+});
+
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('cancelUpload').addEventListener('click', closeModal);
+
+function closeModal() {
+    if (state.isUploading) {
+        if (!confirm('Upload in progress. Are you sure you want to close?')) {
+            return;
+        }
+    }
+    modal.classList.add('hidden');
+    state.selectedFiles = [];
+    state.isUploading = false;
+    filesList.innerHTML = '';
+    filesList.classList.add('hidden');
+    startUploadBtn.disabled = true;
+    startUploadBtn.innerHTML = 'Upload Files';
+}
+
+// File selection
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileSelect);
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('border-blue-500', 'bg-blue-50');
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+    handleFileSelect({ target: { files: e.dataTransfer.files } });
+});
+
+function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    
+    // Validate
+    if (files.length > 20) {
+        alert('Maximum 20 files allowed');
+        return;
+    }
+    
+    const validFiles = files.filter(file => {
+        if (!file.type.startsWith('image/')) {
+            alert(`${file.name} is not an image`);
+            return false;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            alert(`${file.name} is too large (max 10MB)`);
+            return false;
+        }
+        return true;
+    });
+    
+    if (validFiles.length === 0) return;
+    
+    state.selectedFiles = validFiles;
+    renderFilesList();
+    startUploadBtn.disabled = false;
+}
+
+function renderFilesList() {
+    filesList.classList.remove('hidden');
+    filesList.innerHTML = state.selectedFiles.map((file, index) => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-3">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">${file.name}</p>
+                    <p class="text-xs text-gray-500">${formatFileSize(file.size)}</p>
+                </div>
+            </div>
+            <button onclick="removeFile(${index})" class="text-gray-400 hover:text-red-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    `).join('');
+}
+
+window.removeFile = function(index) {
+    state.selectedFiles.splice(index, 1);
+    if (state.selectedFiles.length === 0) {
+        filesList.classList.add('hidden');
+        startUploadBtn.disabled = true;
+    } else {
+        renderFilesList();
+    }
+};
+
+// Upload functionality
+startUploadBtn.addEventListener('click', initiateUpload);
+
+async function initiateUpload() {
+    if (state.selectedFiles.length === 0) return;
+    
+    state.isUploading = true;
+    startUploadBtn.disabled = true;
+    startUploadBtn.innerHTML = '<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent mr-2"></span> Initializing...';
+    
+    try {
+        // Step 1: Initialize upload - get SAS URLs
+        const filesData = state.selectedFiles.map(file => ({
+            name: file.name,
+            size: file.size
+        }));
+        
+        const response = await fetch('/api/assets/init/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ files: filesData, category: 'item' })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to initialize upload');
+        }
+        
+        const data = await response.json();
+        const uploads = data.uploads;
+        
+        // Step 2: Upload files directly to Azure
+        startUploadBtn.innerHTML = '<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent mr-2"></span> Uploading...';
+        
+        const uploadPromises = uploads.map((uploadInfo, index) => {
+            const file = state.selectedFiles[index];
+            return uploadToAzure(file, uploadInfo);
+        });
+        
+        await Promise.all(uploadPromises);
+        
+        // Step 3: Start polling for each upload
+        uploads.forEach(uploadInfo => {
+            startPolling(uploadInfo.asset_id, 'item');
+        });
+        
+        // Reset state and close modal
+        state.isUploading = false;
+        startUploadBtn.innerHTML = 'Upload Files';
+        closeModal();
+        
+        // Show success message
+        showNotification('Files uploaded! Verifying...', 'success');
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showNotification('Upload failed: ' + error.message, 'error');
+        startUploadBtn.disabled = false;
+        startUploadBtn.innerHTML = 'Upload Files';
+        state.isUploading = false;
+    }
+}
+
+async function uploadToAzure(file, uploadInfo) {
+    const response = await fetch(uploadInfo.upload_url, {
+        method: 'PUT',
+        headers: {
+            'x-ms-blob-type': 'BlockBlob',
+            'Content-Type': file.type
+        },
+        body: file
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Failed to upload ${file.name}`);
+    }
+}
+
+function startPolling(assetId, categoryType = 'item') {
+    // Add placeholder to UI immediately
+    addAssetPlaceholder(assetId, categoryType);
+    
+    let pollCount = 0;
+    const maxPolls = categoryType === 'item' ? 30 : 30; // Max 60 seconds (30 * 2s) for upload + part detection for items
+    
+    const intervalId = setInterval(async () => {
+        pollCount++;
+        
+        // Safety timeout: stop after max polls
+        if (pollCount >= maxPolls) {
+            clearInterval(intervalId);
+            state.pollingIntervals.delete(assetId);
+            await loadAssets(); // Final refresh
+            return;
+        }
+        try {
+            const response = await fetch(`/api/assets/status/${assetId}/`, {
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+            
+            if (!response.ok) {
+                clearInterval(intervalId);
+                state.pollingIntervals.delete(assetId);
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (data.status === 'uploaded') {
+                // For clothing items, continue polling until part is detected
+                if (categoryType === 'item') {
+                    const assetEl = document.getElementById(`asset-${assetId}`);
+                    if (assetEl && !data.part) {
+                        // Still detecting part, keep polling but less frequently
+                        // Update UI to show "Detecting..." if not already shown
+                        const detectingBadge = assetEl.querySelector('.detecting-part');
+                        if (!detectingBadge) {
+                            const infoSection = assetEl.querySelector('.p-3');
+                            if (infoSection) {
+                                const existingBadges = infoSection.querySelector('.flex.items-center.gap-2');
+                                if (existingBadges) {
+                                    const detectingSpan = document.createElement('span');
+                                    detectingSpan.className = 'px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium detecting-part';
+                                    detectingSpan.textContent = 'Detecting...';
+                                    existingBadges.insertBefore(detectingSpan, existingBadges.firstChild);
+                                }
+                            }
+                        }
+                        // Continue polling every 2 seconds for part detection
+                        return;
+                    }
+                }
+                
+                // Part detected or not a clothing item, stop polling and refresh
+                clearInterval(intervalId);
+                state.pollingIntervals.delete(assetId);
+                
+                // Refresh assets list to show final state
+                await loadAssets();
+            }
+            
+        } catch (error) {
+            console.error('Polling error:', error);
+            clearInterval(intervalId);
+            state.pollingIntervals.delete(assetId);
+        }
+    }, 2000); // Poll every 2 seconds
+    
+    state.pollingIntervals.set(assetId, intervalId);
+}
+
+function addAssetPlaceholder(assetId, categoryType = 'item') {
+    const placeholder = document.createElement('div');
+    placeholder.id = `asset-${assetId}`;
+    placeholder.className = 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden';
+    placeholder.innerHTML = `
+        <div class="aspect-[3/4] bg-gray-100 flex items-center justify-center">
+            <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+        </div>
+        <div class="p-3">
+            <p class="text-sm text-gray-500">Uploading...</p>
+        </div>
+    `;
+    
+    emptyState.classList.add('hidden');
+    assetsSections.classList.remove('hidden');
+    
+    const containerId = categoryType === 'item' ? 'itemsContainer' : categoryType === 'body' ? 'bodyContainer' : 'generatedContainer';
+    const emptyId = categoryType === 'item' ? 'itemsEmpty' : categoryType === 'body' ? 'bodyEmpty' : 'generatedEmpty';
+    const container = document.getElementById(containerId);
+    const emptyEl = document.getElementById(emptyId);
+    emptyEl.classList.add('hidden');
+    container.insertBefore(placeholder, container.firstChild);
+}
+
+// Load and display assets
+async function loadAssets() {
+    loadingState.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    assetsSections.classList.add('hidden');
+    
+    try {
+        // Load all three categories
+        const [itemsRes, bodyRes, generatedRes] = await Promise.all([
+            fetch('/api/assets/?category=item', { headers: { 'X-CSRFToken': getCSRFToken() } }),
+            fetch('/api/assets/?category=body', { headers: { 'X-CSRFToken': getCSRFToken() } }),
+            fetch('/api/assets/?category=generated', { headers: { 'X-CSRFToken': getCSRFToken() } })
+        ]);
+        
+        if (!itemsRes.ok || !bodyRes.ok || !generatedRes.ok) {
+            throw new Error('Failed to load assets');
+        }
+        
+        const itemsData = await itemsRes.json();
+        const bodyData = await bodyRes.json();
+        const generatedData = await generatedRes.json();
+        
+        state.itemAssets = itemsData.assets;
+        state.bodyAssets = bodyData.assets;
+        state.generatedAssets = generatedData.assets;
+        
+        renderAssets();
+        
+    } catch (error) {
+        console.error('Load assets error:', error);
+        showNotification('Failed to load assets', 'error');
+    } finally {
+        loadingState.classList.add('hidden');
+    }
+}
+
+function renderAssets() {
+    const totalAssets = state.itemAssets.length + state.bodyAssets.length + state.generatedAssets.length;
+    
+    if (totalAssets === 0) {
+        emptyState.classList.remove('hidden');
+        assetsSections.classList.add('hidden');
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    assetsSections.classList.remove('hidden');
+    
+    // Render each category
+    renderCategory('items', state.itemAssets, 'item');
+    renderCategory('body', state.bodyAssets, 'body');
+    renderCategory('generated', state.generatedAssets, 'generated');
+}
+
+function renderCategory(categoryId, assets, categoryType) {
+    const container = document.getElementById(`${categoryId}Container`);
+    const emptyEl = document.getElementById(`${categoryId}Empty`);
+    
+    container.innerHTML = '';
+    
+    if (assets.length === 0) {
+        emptyEl.classList.remove('hidden');
+        return;
+    }
+    
+    emptyEl.classList.add('hidden');
+    
+    assets.forEach(asset => {
+        const assetId = asset.asset_id;
+        const displayName = asset.display_name;
+        
+        const assetEl = document.createElement('div');
+        assetEl.id = `asset-${assetId}`;
+        assetEl.className = 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow';
+        
+        const categoryBadge = categoryType === 'item' ? 'bg-blue-100 text-blue-800' : 
+                             categoryType === 'body' ? 'bg-purple-100 text-purple-800' : 
+                             'bg-green-100 text-green-800';
+        const categoryLabel = categoryType === 'item' ? 'Item' : 
+                             categoryType === 'body' ? 'Body' : 
+                             'Generated';
+        
+        // Part badge for clothing items
+        let partBadge = '';
+        if (categoryType === 'item') {
+            if (asset.part) {
+                const partColors = {
+                    'upper': 'bg-orange-100 text-orange-800',
+                    'lower': 'bg-indigo-100 text-indigo-800',
+                    'full_set': 'bg-pink-100 text-pink-800'
+                };
+                const partLabels = {
+                    'upper': 'Upper',
+                    'lower': 'Lower',
+                    'full_set': 'Full Set'
+                };
+                partBadge = `<span class="px-2 py-1 ${partColors[asset.part]} rounded-full text-xs font-medium">${partLabels[asset.part]}</span>`;
+            } else if (asset.status === 'available') {
+                // Show detecting badge if uploaded but part not yet detected
+                partBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Detecting...</span>`;
+            }
+        }
+        
+        // Model badge for generated images
+        let modelBadge = '';
+        let modelImageBadge = '';
+        if (categoryType === 'generated' && displayName && displayName.startsWith('generated_')) {
+            const parts = displayName.replace('.jpg', '').split('_');
+            if (parts.length >= 3) {
+                const modelName = parts[2]; // Get model name after 'generated_'
+                const modelLabels = {
+                    'gemini': 'Gemini',
+                    'vwflux': 'Flux',
+                    'vwcatvton': 'CatVTON',
+                    'fitroom': 'FitRoom'
+                };
+                const modelColors = {
+                    'gemini': 'bg-purple-100 text-purple-800',
+                    'vwflux': 'bg-blue-100 text-blue-800',
+                    'vwcatvton': 'bg-green-100 text-green-800',
+                    'fitroom': 'bg-orange-100 text-orange-800'
+                };
+                const modelImageColors = {
+                    'gemini': 'bg-purple-500',
+                    'vwflux': 'bg-blue-500',
+                    'vwcatvton': 'bg-green-500',
+                    'fitroom': 'bg-orange-500'
+                };
+                const label = modelLabels[modelName] || modelName;
+                const badgeColor = modelColors[modelName] || 'bg-gray-100 text-gray-800';
+                const imageBadgeColor = modelImageColors[modelName] || 'bg-gray-500';
+                modelBadge = `<span class="px-2 py-1 ${badgeColor} rounded-full text-xs font-medium">${label}</span>`;
+                modelImageBadge = `<div class="absolute top-2 left-2 ${imageBadgeColor} text-white text-xs font-semibold px-2 py-1 rounded shadow-md">${label}</div>`;
+            }
+        }
+        
+        assetEl.innerHTML = `
+            <div class="aspect-[3/4] bg-gray-100 relative">
+                <img src="${asset.url}" alt="${displayName}" class="w-full h-full object-contain image-viewer-trigger" loading="lazy">
+                ${modelImageBadge}
+                <button onclick="event.stopPropagation(); deleteAsset('${assetId}', '${categoryType}')" class="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg opacity-0 transition-opacity">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-3 flex flex-col h-[72px]">
+                <p class="text-sm font-medium text-gray-900 truncate mb-2" title="${displayName}">${displayName}</p>
+                <div class="flex items-start justify-between gap-2 mt-auto">
+                    <span class="text-xs text-gray-500 flex-shrink-0">${formatFileSize(asset.file_size)}</span>
+                    <div class="flex items-center gap-1 flex-wrap justify-end">
+                        ${partBadge}
+                        ${modelBadge}
+                        <span class="px-2 py-1 ${categoryBadge} rounded-full text-xs whitespace-nowrap">${categoryLabel}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Make delete button visible on hover
+        assetEl.addEventListener('mouseenter', function() {
+            this.querySelector('button').classList.remove('opacity-0');
+        });
+        assetEl.addEventListener('mouseleave', function() {
+            this.querySelector('button').classList.add('opacity-0');
+        });
+        
+        container.appendChild(assetEl);
+    });
+    
+    // Attach image viewer to newly added images
+    if (typeof window.imageViewerAutoAttach === 'function') {
+        window.imageViewerAutoAttach();
+    }
+}
+
+// Delete asset
+window.deleteAsset = async function(uploadId, categoryType) {
+    if (!confirm('Are you sure you want to delete this asset?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/assets/delete/${uploadId}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to delete asset');
+        }
+        
+        // Remove from UI
+        const assetEl = document.getElementById(`asset-${uploadId}`);
+        if (assetEl) {
+            assetEl.remove();
+        }
+        
+        // Update state based on category
+        if (categoryType === 'item') {
+            state.itemAssets = state.itemAssets.filter(a => a.asset_id !== uploadId);
+        } else if (categoryType === 'body') {
+            state.bodyAssets = state.bodyAssets.filter(a => a.asset_id !== uploadId);
+        } else if (categoryType === 'generated') {
+            state.generatedAssets = state.generatedAssets.filter(a => a.asset_id !== uploadId);
+        }
+        
+        // Check if category is now empty
+        const categoryId = categoryType === 'item' ? 'items' : categoryType === 'body' ? 'body' : 'generated';
+        const assets = categoryType === 'item' ? state.itemAssets : categoryType === 'body' ? state.bodyAssets : state.generatedAssets;
+        const emptyEl = document.getElementById(`${categoryId}Empty`);
+        const container = document.getElementById(`${categoryId}Container`);
+        
+        if (assets.length === 0) {
+            container.innerHTML = '';
+            emptyEl.classList.remove('hidden');
+        }
+        
+        // Check if all categories are empty
+        const totalAssets = state.itemAssets.length + state.bodyAssets.length + state.generatedAssets.length;
+        if (totalAssets === 0) {
+            emptyState.classList.remove('hidden');
+            assetsSections.classList.add('hidden');
+        }
+        
+        showNotification('Asset deleted successfully', 'success');
+        
+    } catch (error) {
+        console.error('Delete error:', error);
+        showNotification('Failed to delete asset', 'error');
+    }
+};
+
+// Notification system
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+    
+    notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadAssets();
+});
+
+// Body image upload modal controls
+document.getElementById('openBodyUploadModal').addEventListener('click', () => {
+    uploadBodyModal.classList.remove('hidden');
+});
+
+document.getElementById('closeBodyModal').addEventListener('click', closeBodyModal);
+document.getElementById('cancelBodyUpload').addEventListener('click', closeBodyModal);
+
+function closeBodyModal() {
+    if (state.isBodyUploading) {
+        if (!confirm('Upload in progress. Are you sure you want to close?')) {
+            return;
+        }
+    }
+    uploadBodyModal.classList.add('hidden');
+    state.selectedBodyFiles = [];
+    state.isBodyUploading = false;
+    bodyFilesList.innerHTML = '';
+    bodyFilesList.classList.add('hidden');
+    startBodyUploadBtn.disabled = true;
+    startBodyUploadBtn.innerHTML = 'Upload Files';
+}
+
+// Body file selection
+bodyDropZone.addEventListener('click', () => bodyFileInput.click());
+bodyFileInput.addEventListener('change', handleBodyFileSelect);
+
+bodyDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    bodyDropZone.classList.add('border-purple-500', 'bg-purple-50');
+});
+
+bodyDropZone.addEventListener('dragleave', () => {
+    bodyDropZone.classList.remove('border-purple-500', 'bg-purple-50');
+});
+
+bodyDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    bodyDropZone.classList.remove('border-purple-500', 'bg-purple-50');
+    handleBodyFileSelect({ target: { files: e.dataTransfer.files } });
+});
+
+function handleBodyFileSelect(e) {
+    const files = Array.from(e.target.files);
+    
+    // Validate
+    if (files.length > 5) {
+        showNotification('Maximum 5 files allowed', 'error');
+        return;
+    }
+    
+    const validFiles = files.filter(file => {
+        if (!file.type.startsWith('image/')) {
+            showNotification(`${file.name} is not an image`, 'error');
+            return false;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            showNotification(`${file.name} is too large (max 10MB)`, 'error');
+            return false;
+        }
+        return true;
+    });
+    
+    if (validFiles.length === 0) return;
+    
+    state.selectedBodyFiles = validFiles;
+    renderBodyFilesList();
+    startBodyUploadBtn.disabled = false;
+}
+
+function renderBodyFilesList() {
+    bodyFilesList.classList.remove('hidden');
+    bodyFilesList.innerHTML = state.selectedBodyFiles.map((file, index) => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-3">
+                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">${file.name}</p>
+                    <p class="text-xs text-gray-500">${formatFileSize(file.size)}</p>
+                </div>
+            </div>
+            <button onclick="removeBodyFile(${index})" class="text-gray-400 hover:text-red-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    `).join('');
+}
+
+window.removeBodyFile = function(index) {
+    state.selectedBodyFiles.splice(index, 1);
+    if (state.selectedBodyFiles.length === 0) {
+        bodyFilesList.classList.add('hidden');
+        startBodyUploadBtn.disabled = true;
+    } else {
+        renderBodyFilesList();
+    }
+};
+
+// Body image upload functionality
+startBodyUploadBtn.addEventListener('click', initiateBodyUpload);
+
+async function initiateBodyUpload() {
+    if (state.selectedBodyFiles.length === 0) return;
+    
+    state.isBodyUploading = true;
+    startBodyUploadBtn.disabled = true;
+    startBodyUploadBtn.innerHTML = '<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent mr-2"></span> Initializing...';
+    
+    try {
+        // Step 1: Initialize upload - get SAS URLs
+        const filesData = state.selectedBodyFiles.map(file => ({
+            name: file.name,
+            size: file.size
+        }));
+        
+        const response = await fetch('/api/assets/init/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ files: filesData, category: 'body' })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to initialize upload');
+        }
+        
+        const data = await response.json();
+        const uploads = data.uploads;
+        
+        // Step 2: Upload files directly to Azure
+        startBodyUploadBtn.innerHTML = '<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent mr-2"></span> Uploading...';
+        
+        const uploadPromises = uploads.map((uploadInfo, index) => {
+            const file = state.selectedBodyFiles[index];
+            return uploadToAzure(file, uploadInfo);
+        });
+        
+        await Promise.all(uploadPromises);
+        
+        // Step 3: Start polling for each upload
+        uploads.forEach(uploadInfo => {
+            startPolling(uploadInfo.asset_id, 'body');
+        });
+        
+        // Reset state and close modal
+        state.isBodyUploading = false;
+        startBodyUploadBtn.innerHTML = 'Upload Files';
+        closeBodyModal();
+        
+        // Show success message
+        showNotification('Body images uploaded! Verifying...', 'success');
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showNotification('Upload failed: ' + error.message, 'error');
+        startBodyUploadBtn.disabled = false;
+        startBodyUploadBtn.innerHTML = 'Upload Files';
+        state.isBodyUploading = false;
+    }
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    state.pollingIntervals.forEach((intervalId) => {
+        clearInterval(intervalId);
+    });
+});
+</script>
+{% endblock %}
+

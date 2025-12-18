@@ -1,0 +1,616 @@
+{% extends "bases/base.html" %}
+
+{% block title %}Virtual Fit - ViWear{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Virtual Fit</h1>
+        <p class="mt-1 text-sm text-gray-500">Try on clothing virtually using AI</p>
+    </div>
+
+    <!-- Body Images Section -->
+    <div class="mb-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl p-6 border border-purple-200/50 shadow-sm">
+        <div class="flex justify-between items-center mb-5">
+            <div class="flex items-center gap-3">
+                <div class="bg-purple-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900">Your Body Images</h2>
+            </div>
+            <a href="/my-assets/" class="text-sm font-medium text-purple-700 hover:text-purple-900 flex items-center gap-1">
+                Manage
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </a>
+        </div>
+        
+        <div id="bodyImagesContainer" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
+            <!-- Body images will be loaded here -->
+        </div>
+        
+        <div id="bodyEmptyState" class="hidden text-center py-8 bg-purple-100/50 rounded-lg border-2 border-dashed border-purple-300">
+            <p class="text-sm text-purple-700">No body images yet. <a href="/my-assets/" class="font-semibold text-purple-800 hover:text-purple-900 underline">Upload body images</a> to get started.</p>
+        </div>
+    </div>
+
+    <!-- Clothing Images Section -->
+    <div class="mb-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-6 border border-blue-200/50 shadow-sm">
+        <div class="flex justify-between items-center mb-5">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900">Your Clothing</h2>
+            </div>
+            <a href="/my-assets/" class="text-sm font-medium text-blue-700 hover:text-blue-900 flex items-center gap-1">
+                Manage
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </a>
+        </div>
+        
+        <div id="clothingImagesContainer" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-3">
+            <!-- Clothing images will be loaded here -->
+        </div>
+        
+        <div id="clothingEmptyState" class="hidden text-center py-8 bg-blue-100/50 rounded-lg border-2 border-dashed border-blue-300">
+            <p class="text-sm text-blue-700">No clothing images yet. <a href="/my-assets/" class="font-semibold text-blue-800 hover:text-blue-900 underline">Upload some clothing</a></p>
+        </div>
+    </div>
+
+    <!-- Generate Button (Fixed at bottom) -->
+    <div id="generateSection" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+        <div id="generateSectionContent" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-600 min-w-[280px]">
+                    <span id="selectionSummary">Select 1 body image and 1 clothing item</span>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="generateGeminiBtn" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                        </svg>
+                        Generate with Gemini
+                    </button>
+                    <button id="generateCustomBtn" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Generate with Flux
+                    </button>
+                    <button id="generateCatVTONBtn" class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Generate with CatVTON
+                    </button>
+                    <button id="generateFitRoomBtn" class="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                        </svg>
+                        Generate with FitRoom
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generated Images Section -->
+    <div class="mt-6 mb-24 bg-gradient-to-br from-green-50 to-emerald-100/50 rounded-2xl p-6 border border-green-200/50 shadow-sm">
+        <div class="flex items-center gap-3 mb-5">
+            <div class="bg-gradient-to-br from-green-600 to-emerald-600 p-2 rounded-lg">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-900">Generated Results</h2>
+        </div>
+        <div id="generatedImagesContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Generated images will be loaded here -->
+        </div>
+        
+        <div id="generatedEmptyState" class="text-center py-12 bg-green-100/50 rounded-xl border-2 border-dashed border-green-300">
+            <svg class="mx-auto h-12 w-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            <h3 class="mt-2 text-sm font-semibold text-gray-900">No generated images yet</h3>
+            <p class="mt-1 text-sm text-green-700">Select images above and click a "Generate" button</p>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="hidden text-center py-12">
+        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+        <p class="mt-2 text-sm text-gray-500">Loading...</p>
+    </div>
+
+    </div>
+
+<!-- Generation Progress Modal -->
+<div id="generationModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="fixed inset-0 bg-black bg-opacity-75 transition-opacity"></div>
+    
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-8 text-center">
+            <div class="inline-block h-16 w-16 animate-spin rounded-full border-4 border-solid border-purple-600 border-r-transparent mb-4"></div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Generating Virtual Fit</h3>
+            <p class="text-sm text-gray-500 mb-2" id="generationStatus">Starting generation...</p>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                <div id="generationProgressBar" class="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-gray-400" id="generationProgressText">0%</p>
+            <p class="text-xs text-gray-400 mt-2">Please don't close this page</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% load static %}
+<script src="{% static 'js/image-viewer.js' %}"></script>
+<script>
+// Global state
+const state = {
+    bodyImages: [],
+    clothingImages: [],
+    generatedImages: [],
+    selectedBodyId: null,
+    selectedClothingId: null,
+    isGenerating: false
+};
+
+// DOM Elements
+const bodyContainer = document.getElementById('bodyImagesContainer');
+const clothingContainer = document.getElementById('clothingImagesContainer');
+const generatedContainer = document.getElementById('generatedImagesContainer');
+const generateSection = document.getElementById('generateSection');
+const generateGeminiBtn = document.getElementById('generateGeminiBtn');
+const generateCustomBtn = document.getElementById('generateCustomBtn');
+const generateCatVTONBtn = document.getElementById('generateCatVTONBtn');
+const generateFitRoomBtn = document.getElementById('generateFitRoomBtn');
+const selectionSummary = document.getElementById('selectionSummary');
+const generationModal = document.getElementById('generationModal');
+const generationStatus = document.getElementById('generationStatus');
+const generationProgressBar = document.getElementById('generationProgressBar');
+const generationProgressText = document.getElementById('generationProgressText');
+
+// Helper functions
+function getCSRFToken() {
+    return document.cookie.split('; ')
+        .find(row => row.startsWith('csrftoken='))
+        ?.split('=')[1];
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+    notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 8000);
+}
+
+// Load images
+async function loadBodyImages() {
+    try {
+        const response = await fetch('/api/assets/?category=body', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load body images');
+        
+        const data = await response.json();
+        state.bodyImages = data.assets;
+        renderBodyImages();
+    } catch (error) {
+        console.error('Error loading body images:', error);
+        showNotification('Failed to load body images', 'error');
+    }
+}
+
+async function loadClothingImages() {
+    try {
+        const response = await fetch('/api/assets/?category=item', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load clothing images');
+        
+        const data = await response.json();
+        state.clothingImages = data.assets;
+        renderClothingImages();
+    } catch (error) {
+        console.error('Error loading clothing images:', error);
+        showNotification('Failed to load clothing images', 'error');
+    }
+}
+
+async function loadGeneratedImages() {
+    try {
+        const response = await fetch('/api/assets/?category=generated', {
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        });
+        if (!response.ok) throw new Error('Failed to load generated images');
+        const data = await response.json();
+        state.generatedImages = data.assets;
+        renderGeneratedImages();
+    } catch (error) {
+        console.error('Error loading generated images:', error);
+    }
+}
+
+// Render functions
+function renderBodyImages() {
+    bodyContainer.innerHTML = '';
+    const emptyState = document.getElementById('bodyEmptyState');
+    
+    if (state.bodyImages.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    
+    state.bodyImages.forEach(asset => {
+        const assetId = asset.asset_id;
+        const isSelected = state.selectedBodyId === assetId;
+        const div = document.createElement('div');
+        div.className = `relative cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${isSelected ? 'border-purple-600 shadow-lg' : 'border-transparent hover:border-purple-300'}`;
+        div.onclick = () => selectBodyImage(assetId);
+        
+        div.innerHTML = `
+            <div class="aspect-[3/4] bg-gray-100">
+                <img src="${asset.url}" alt="${asset.display_name}" class="w-full h-full object-contain">
+            </div>
+            ${isSelected ? '<div class="absolute top-2 right-2 bg-purple-600 text-white rounded-full p-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg></div>' : ''}
+        `;
+        
+        bodyContainer.appendChild(div);
+    });
+}
+
+function renderClothingImages() {
+    clothingContainer.innerHTML = '';
+    const emptyState = document.getElementById('clothingEmptyState');
+    
+    if (state.clothingImages.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    
+    state.clothingImages.forEach(asset => {
+        const assetId = asset.asset_id;
+        const isSelected = state.selectedClothingId === assetId;
+        const div = document.createElement('div');
+        div.className = `relative cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${isSelected ? 'border-blue-600 shadow-lg' : 'border-transparent hover:border-blue-300'}`;
+        div.onclick = () => selectClothingImage(assetId);
+        
+        // Part badge
+        let partBadge = '';
+        if (asset.part) {
+            const partColors = {
+                'upper': 'bg-orange-500',
+                'lower': 'bg-indigo-500',
+                'full_set': 'bg-pink-500'
+            };
+            const partLabels = {
+                'upper': 'Upper',
+                'lower': 'Lower',
+                'full_set': 'Full Set'
+            };
+            partBadge = `<div class="absolute top-2 left-2 ${partColors[asset.part]} text-white text-xs font-semibold px-2 py-1 rounded shadow-md">${partLabels[asset.part]}</div>`;
+        } else if (asset.status === 'uploaded') {
+            // Show detecting badge if uploaded but part not yet detected
+            partBadge = `<div class="absolute top-2 left-2 bg-gray-500 text-white text-xs font-semibold px-2 py-1 rounded shadow-md">Detecting...</div>`;
+        }
+        
+        div.innerHTML = `
+            <div class="aspect-[3/4] bg-gray-100 relative">
+                <img src="${asset.url}" alt="${asset.display_name}" class="w-full h-full object-contain">
+                ${partBadge}
+                ${isSelected ? '<div class="absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg></div>' : ''}
+            </div>
+        `;
+        
+        clothingContainer.appendChild(div);
+    });
+}
+
+function renderGeneratedImages() {
+    generatedContainer.innerHTML = '';
+    const emptyState = document.getElementById('generatedEmptyState');
+    
+    if (state.generatedImages.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    
+    state.generatedImages.forEach(asset => {
+        const div = document.createElement('div');
+        div.className = 'bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow';
+        
+        // Extract model name from display_name (format: generated_{model}_{timestamp}.jpg)
+        let modelBadge = '';
+        const displayName = asset.display_name;
+        if (displayName && displayName.startsWith('generated_')) {
+            const parts = displayName.replace('.jpg', '').split('_');
+            if (parts.length >= 3) {
+                const modelName = parts[2]; // Get model name after 'generated_'
+                const modelLabels = {
+                    'gemini': 'Gemini',
+                    'vwflux': 'Flux',
+                    'vwcatvton': 'CatVTON',
+                    'fitroom': 'FitRoom'
+                };
+                const modelColors = {
+                    'gemini': 'bg-purple-100 text-purple-800',
+                    'vwflux': 'bg-blue-100 text-blue-800',
+                    'vwcatvton': 'bg-green-100 text-green-800',
+                    'fitroom': 'bg-orange-100 text-orange-800'
+                };
+                const label = modelLabels[modelName] || modelName;
+                const badgeColor = modelColors[modelName] || 'bg-gray-100 text-gray-800';
+                modelBadge = `<span class="px-2 py-1 ${badgeColor} rounded-full text-xs font-medium">${label}</span>`;
+            }
+        }
+        
+        div.innerHTML = `
+            <div class="aspect-[3/4] bg-gray-100 relative">
+                <img src="${asset.url}" alt="${displayName}" class="w-full h-full object-contain image-viewer-trigger">
+                ${modelBadge ? `<div class="absolute top-2 left-2">${modelBadge}</div>` : ''}
+            </div>
+            <div class="p-3">
+                <p class="text-xs text-gray-500">${new Date(asset.created_at).toLocaleString()}</p>
+            </div>
+        `;
+        
+        generatedContainer.appendChild(div);
+    });
+    
+    // Attach image viewer to newly added images
+    if (typeof window.imageViewerAutoAttach === 'function') {
+        window.imageViewerAutoAttach();
+    }
+}
+
+// Selection handlers
+function selectBodyImage(uploadId) {
+    // Toggle: if already selected, deselect; otherwise select
+    state.selectedBodyId = state.selectedBodyId === uploadId ? null : uploadId;
+    renderBodyImages();
+    updateGenerateButton();
+}
+
+function selectClothingImage(uploadId) {
+    // Toggle: if already selected, deselect; otherwise select (only one at a time)
+    state.selectedClothingId = state.selectedClothingId === uploadId ? null : uploadId;
+    renderClothingImages();
+    updateGenerateButton();
+}
+
+function updateGenerateButton() {
+    const hasBody = state.selectedBodyId !== null;
+    const hasClothing = state.selectedClothingId !== null;
+    const buttons = [generateGeminiBtn, generateCustomBtn, generateCatVTONBtn, generateFitRoomBtn];
+    
+    // Always show the section - never change its size
+    generateSection.classList.remove('hidden');
+    
+    if (hasBody && hasClothing) {
+        // Both selected - enable buttons
+        buttons.forEach(btn => {
+            btn.disabled = false;
+        });
+        selectionSummary.textContent = '1 body image + 1 clothing item selected';
+    } else {
+        // Not both selected - disable buttons
+        buttons.forEach(btn => {
+            btn.disabled = true;
+        });
+        
+        if (hasBody) {
+            selectionSummary.textContent = 'Select 1 clothing item';
+        } else if (hasClothing) {
+            selectionSummary.textContent = 'Select 1 body image';
+        } else {
+            selectionSummary.textContent = 'Select 1 body image and 1 clothing item';
+        }
+    }
+}
+
+// Generate virtual fit function (async with polling)
+async function generateVirtualFit(generatorType) {
+    if (state.isGenerating || !state.selectedBodyId || !state.selectedClothingId) return;
+    
+    state.isGenerating = true;
+    generationModal.classList.remove('hidden');
+    generationStatus.textContent = 'Queuing generation task...';
+    generationProgressBar.style.width = '0%';
+    generationProgressText.textContent = '0%';
+    
+    let taskId = null;
+    
+    try {
+        // Create generation task
+        const response = await fetch('/api/virtual-fit/generate/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({
+                body_asset_id: state.selectedBodyId,
+                clothing_asset_ids: [state.selectedClothingId],
+                generator_type: generatorType
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to queue generation task');
+        }
+        
+        const data = await response.json();
+        taskId = data.task_id;
+        
+        // Display user-friendly generator name
+        let generatorDisplay = generatorType;
+        if (generatorType === 'vwflux') {
+            generatorDisplay = 'Flux';
+        } else if (generatorType === 'vwcatvton') {
+            generatorDisplay = 'CatVTON';
+        } else if (generatorType === 'fitroom') {
+            generatorDisplay = 'FitRoom';
+        }
+        
+        generationStatus.textContent = `Generating with ${generatorDisplay}...`;
+        
+        // Poll task status
+        await pollGenerationStatus(taskId, generatorDisplay);
+        
+    } catch (error) {
+        console.error('Generation error:', error);
+        showNotification(error.message || 'Failed to generate virtual fit', 'error');
+        generationModal.classList.add('hidden');
+    } finally {
+        state.isGenerating = false;
+    }
+}
+
+// Poll generation task status
+async function pollGenerationStatus(taskId, generatorDisplay) {
+    const maxAttempts = 120; // 120 attempts * 2 seconds = 4 minutes max
+    let attempts = 0;
+    
+    const pollInterval = setInterval(async () => {
+        attempts++;
+        
+        try {
+            const response = await fetch(`/api/virtual-fit/tasks/${taskId}/`, {
+                headers: { 'X-CSRFToken': getCSRFToken() }
+            });
+            
+            if (!response.ok) {
+                clearInterval(pollInterval);
+                throw new Error('Failed to check generation status');
+            }
+            
+            const data = await response.json();
+            const taskStatus = data.status;
+            const progress = data.progress || 0;
+            
+            // Update progress bar
+            generationProgressBar.style.width = `${progress}%`;
+            generationProgressText.textContent = `${progress}%`;
+            
+            if (taskStatus === 'completed') {
+                clearInterval(pollInterval);
+                generationStatus.textContent = 'Generation complete!';
+                generationProgressBar.style.width = '100%';
+                generationProgressText.textContent = '100%';
+                
+                showNotification(`Virtual fit generated successfully with ${generatorDisplay}!`, 'success');
+                
+                // Reload generated images
+                await loadGeneratedImages();
+                
+                // Clear selections
+                state.selectedBodyId = null;
+                state.selectedClothingId = null;
+                renderBodyImages();
+                renderClothingImages();
+                updateGenerateButton();
+                
+                // Close modal after short delay
+                setTimeout(() => {
+                    generationModal.classList.add('hidden');
+                }, 1000);
+                
+            } else if (taskStatus === 'failed') {
+                clearInterval(pollInterval);
+                const errorMsg = data.error_message || 'Generation failed';
+                generationStatus.textContent = 'Generation failed';
+                showNotification(errorMsg, 'error');
+                generationModal.classList.add('hidden');
+                
+            } else if (taskStatus === 'processing') {
+                generationStatus.textContent = `Processing... ${progress}%`;
+                
+            } else if (taskStatus === 'pending') {
+                generationStatus.textContent = 'Waiting to start...';
+            }
+            
+            // Timeout check
+            if (attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                generationStatus.textContent = 'Generation timeout';
+                showNotification('Generation is taking longer than expected. Please check back later.', 'warning');
+                generationModal.classList.add('hidden');
+            }
+            
+        } catch (error) {
+            console.error('Error polling generation status:', error);
+            clearInterval(pollInterval);
+            showNotification('Failed to check generation status', 'error');
+            generationModal.classList.add('hidden');
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+// Generate with Gemini
+generateGeminiBtn.addEventListener('click', () => generateVirtualFit('gemini'));
+
+// Generate with Flux (VWFlux)
+generateCustomBtn.addEventListener('click', () => generateVirtualFit('vwflux'));
+
+// Generate with CatVTON (VWCatVTON)
+generateCatVTONBtn.addEventListener('click', () => generateVirtualFit('vwcatvton'));
+
+// Generate with FitRoom
+generateFitRoomBtn.addEventListener('click', () => generateVirtualFit('fitroom'));
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadBodyImages();
+    loadClothingImages();
+    loadGeneratedImages();
+    updateGenerateButton(); // Set initial state - buttons disabled, section visible
+});
+</script>
+{% endblock %}
+

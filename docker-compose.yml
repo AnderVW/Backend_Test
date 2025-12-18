@@ -1,0 +1,45 @@
+version: "3.7"
+services:
+
+  ##### MUST HAVES ###########
+
+  postgres:
+    image: postgres:17.6
+    restart: always
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_PASSWORD: qwerty
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+
+  pgadmin:
+    image: dpage/pgadmin4:9.9.0
+    restart: always
+    ports:
+      - 8089:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: qwerty
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_LISTEN_ADDRESS: '0.0.0.0'
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
+  redis:
+    image: redis:7.4.1-alpine
+    ports:
+      - 6379:6379
+
+
+################ KEEP ALWAYS UNCOMMENTED ############
+volumes:
+    postgres-data:
+    pgadmin-data:
+#####################################################
+

@@ -1,0 +1,17 @@
+name: nginx_http_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+
+pool: 'ViWear'
+
+steps:
+
+  - task: Docker@2
+    displayName: Build an image
+    inputs:
+      containerRegistry: 'DockerHub'
+      repository: denbee/nginx-http-custom
+      command: buildAndPush
+      dockerfile: '$(Build.SourcesDirectory)/Pipelines/nginx/Dockerfile'
+      tags: |
+        latest

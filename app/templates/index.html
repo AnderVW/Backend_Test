@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+{% load socialaccount %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viwear</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="https://stviwearprd.blob.core.windows.net/cdn/static/favicon.ico">
+    
+    <!-- Google tag (gtag.js) -->
+    <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=GxxxxFD"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-xxxx');
+    </script> -->
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+
+</head>
+<body class="bg-white">
+    <!-- Navigation Bar -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo/Brand -->
+                <div class="flex items-center">
+                    <a href="{% url 'index' %}" class="flex items-center hover:opacity-80 transition-opacity">
+                        <!-- <img src="https://ViWearcdn.blob.core.windows.net/cdn/static/logo.svg" alt="ViWear Logo" class="h-8 w-auto mr-2"> -->
+                        <span class="text-xl font-bold text-gray-900">ViWear</span>
+                    </a>
+                </div>
+
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'my_assets' %}" class="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">My Assets</a>
+                        <a href="{% url 'virtual_fit' %}" class="text-gray-700 hover:text-purple-600 px-3 py-2 text-sm font-medium">Virtual Fit</a>
+                    {% endif %}
+                </div>
+
+                <!-- User Menu / CTAs -->
+                <div class="flex items-center space-x-4">
+                    {% if user.is_authenticated %}
+                        <div class="relative group">
+                            <button class="flex items-center space-x-2 text-sm rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100">
+                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-sm font-medium">
+                                        {{ user.username|first|upper }}
+                                    </span>
+                                </div>
+                                <svg class="h-4 w-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+
+                            <!-- Dropdown Menu -->
+                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                <div class="py-1">
+                                    <a href="{% url 'profile_page' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
+                                    <div class="border-t border-gray-100"></div>
+                                    <a href="{% url 'account_logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Log out</a>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <a href="{% url 'account_login' %}" class="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">Sign in</a>
+                        <!-- <a href="{% url 'account_signup' %}" class="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">Get started</a> -->
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-gray-50 to-white">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            
+            <!-- Status Badge -->
+            <div class="flex justify-center mb-8">
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
+                    <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                    <span class="text-xs font-medium text-amber-700 uppercase tracking-wide">Pre-Alpha</span>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="text-center mb-12">
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">
+                    Welcome to ViWear
+                </h1>
+                <p class="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+                    Virtual try-on technology powered by AI. Currently in pre-alpha development.
+                </p>
+            </div>
+
+            <!-- Disclaimer Card -->
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 md:p-8">
+                    <div class="flex items-start gap-4">
+                        <div class="flex-shrink-0">
+                            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-2">Early Access Notice</h3>
+                            <p class="text-sm text-gray-600 leading-relaxed mb-4">
+                                This is a pre-alpha version of ViWear. The platform is primarily intended for internal testing, but external users are welcome to explore. Please note that features may be incomplete, unstable, or subject to change without notice.
+                            </p>
+                            <div class="bg-gray-50 border border-gray-200 rounded-md p-4 mt-4">
+                                <p class="text-xs font-medium text-gray-700 mb-1">Use at your own risk</p>
+                                <p class="text-xs text-gray-600">
+                                    This software is provided <strong>"AS IS"</strong> without warranty of any kind. We appreciate your patience and feedback as we continue to improve.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions (if authenticated) -->
+            {% if user.is_authenticated %}
+            <div class="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="{% url 'my_assets' %}" class="inline-flex items-center justify-center px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors">
+                    My Assets
+                    <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+                <a href="{% url 'virtual_fit' %}" class="inline-flex items-center justify-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 text-sm font-medium border border-gray-300 rounded-lg transition-colors">
+                    Virtual Fit
+                    <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+</body>
+</html>

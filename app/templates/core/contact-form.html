@@ -1,0 +1,160 @@
+{% extends 'bases/base.html' %}
+{% block title %}Contact Us - ViWear{% endblock %}
+{% block content %}
+
+<div class="container mx-auto px-4 py-12 max-w-2xl">
+  <!-- Form Card -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+    <div class="p-8">
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Get in Touch</h1>
+        <p class="text-gray-600">We'd love to hear from you. Let us know how we can help.</p>
+      </div>
+
+      <!-- Contact Form -->
+      <form id="contactForm" class="space-y-6">
+        <!-- Name Input -->
+        <div class="space-y-2">
+          <label for="name" class="block text-sm font-medium text-gray-700">
+            Name
+          </label>
+          <input type="text" 
+                 id="name" 
+                 class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white" 
+                 required>
+        </div>
+
+        <!-- Contact Method -->
+        <div class="space-y-2">
+          <label for="contactType" class="block text-sm font-medium text-gray-700">
+            Contact me back <span class="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <div class="flex gap-4">
+            <select id="contactType" 
+                    class="w-1/3 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+              <option value="">No thanks</option>
+              <option value="telegram">Telegram</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="discord">Discord</option>
+              <option value="email">Email</option>
+            </select>
+            <input type="text" 
+                   id="contactValue" 
+                   class="w-2/3 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                   placeholder="Your handle/email">
+          </div>
+        </div>
+
+        <!-- Message Input -->
+        <div class="space-y-2">
+          <label for="message" class="block text-sm font-medium text-gray-700">
+            Message
+          </label>
+          <textarea id="message" 
+                    rows="6" 
+                    class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-vertical"
+                    placeholder="Tell us about your question or feedback..."
+                    required></textarea>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="button" 
+                onclick="sendData()" 
+                class="w-full px-6 py-3 bg-black hover:bg-gray-800 text-white rounded-lg font-medium transition-colors">
+          Send Message
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div aria-live="polite" aria-atomic="true" class="fixed top-4 right-4 z-50">
+  <div class="toast-container"></div>
+</div>
+
+<!-- Scripts -->
+<script>
+  function validateForm() {
+    const name = document.getElementById('name').value;
+    const contactType = document.getElementById('contactType').value;
+    const contactValue = document.getElementById('contactValue').value;
+    const message = document.getElementById('message').value;
+
+    if (!name || !message) {
+      showToast('Please fill in your name and message.', 'error');
+      return false;
+    }
+    
+    // If they selected a contact method, they must provide contact details
+    if (contactType && contactType !== '' && !contactValue) {
+      showToast('Please provide your contact details or select "No thanks".', 'error');
+      return false;
+    }
+    
+    return true;
+  }
+
+  function sendData() {
+    if (!validateForm()) return;
+
+    const name = document.getElementById('name').value;
+    const contactType = document.getElementById('contactType').value;
+    const contactValue = document.getElementById('contactValue').value;
+    const message = document.getElementById('message').value;
+
+    fetch('/api/i/contact-form/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, contactType, contactValue, message })
+    })
+    .then(response => {
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.json();
+    })
+    .then(data => {
+      showToast('Message sent successfully! Thanks!❤️', 'success');
+      document.getElementById('contactForm').reset();
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showToast('Failed to send message.', 'error');
+    });
+  }
+
+  function showToast(message, type) {
+    const toastContainer = document.querySelector('.toast-container');
+    const toast = document.createElement('div');
+    
+    // Set toast classes based on type
+    const baseClasses = 'flex items-center p-4 mb-4 rounded-lg shadow-lg transition-opacity duration-300';
+    const typeClasses = type === 'success' 
+      ? 'bg-green-50 text-green-800 dark:bg-green-800/20 dark:text-green-300'
+      : 'bg-red-50 text-red-800 dark:bg-red-800/20 dark:text-red-300';
+    
+    toast.className = `${baseClasses} ${typeClasses}`;
+    
+    // Toast content
+    toast.innerHTML = `
+      <div class="flex-1">${message}</div>
+      <button type="button" class="ml-4 text-gray-400 hover:text-gray-900 dark:hover:text-gray-50" onclick="this.parentElement.remove()">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </button>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Auto-remove toast after 5 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 5000);
+  }
+</script>
+
+{% endblock %}

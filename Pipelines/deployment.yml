@@ -1,0 +1,273 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: website-viwear-service
+spec:
+  selector:
+    app: website-viwear
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: website-viwear-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.viwear.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: website-viwear-service
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - api.viwear.tech
+      secretName: website-viwear-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: website-viwear
+  labels:
+    app: website-viwear
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: website-viwear
+  template:
+    metadata:
+      labels:
+        app: website-viwear
+    spec:
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: http
+          imagePullPolicy: Always
+          image: denbee/nginx-http-custom:latest
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              memory: 64Mi
+          volumeMounts:
+            - mountPath: /var/cache/nginx
+              name: cache-http
+        - name: app
+          imagePullPolicy: Always
+          image: denbee/website-viwear:${APP_VERSION}
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_DJANGO_SECRET
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_DB_NAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_DB_PASS
+            - name: AZ_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_AZ_CONNECTION_STRING
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_REDIS_URL
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_GOOGLE_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_GOOGLE_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_GEMINI_API_KEY
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: OPENAI_API_KEY
+            - name: FITROOM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_FITROOM_API_KEY
+            - name: TG_ADMIN_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: TG_ADMIN_BOT_TOKEN
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 11005
+          ports:
+            - containerPort: 8081
+          resources:
+            limits:
+              cpu: 3000m
+              memory: 3G
+            requests:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /app/.env
+              subPath: .env
+        - name: huey-worker
+          imagePullPolicy: Always
+          image: denbee/website-viwear:${APP_VERSION}  # Use the same image as your main app
+          command: ["python", "manage.py", "run_huey"]
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_DJANGO_SECRET
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_DB_NAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_DB_PASS
+            - name: AZ_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_AZ_CONNECTION_STRING
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_REDIS_URL
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_GOOGLE_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_GOOGLE_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_GEMINI_API_KEY
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: OPENAI_API_KEY
+            - name: FITROOM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: VIWEAR_FITROOM_API_KEY
+            - name: TG_ADMIN_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: viwear-secrets
+                  key: TG_ADMIN_BOT_TOKEN 
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 11005
+          ports:
+            - containerPort: 8082
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 3G
+            requests:
+              cpu: 400m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /app/.env
+              subPath: .env
+      volumes:
+        - name: config
+          configMap:
+            name: viwear-config
+        - name: cache-http
+          emptyDir: {}
+        # - name: cache-smtp
+        #   emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: viwear-config
+data:
+  .env: |
+    # DJANGO
+    # DJANGO_SECRET_KEY is set via K8s secret (env var)
+    DEBUG=False
+    STATIC_URL=https://stviwearprd.blob.core.windows.net/cdn/static/
+
+    # PRD DB:
+    # DB_NAME, DB_PASSWORD are set via K8s secrets (env vars)
+    DB_USER=postgres
+    DB_HOST=pg-postgresql
+    DB_PORT=5432
+    FORCE_DB_SSL=true
+
+    # Azure
+    # AZ_CONNECTION_STRING is set via K8s secret (env var)
+    AZ_CONTAINER=viwear
+
+    # WEBHOOKS & CORS
+    ALLOWED_HOSTS=viwear.tech,api.viwear.tech
+    CORS_ALLOWED_ORIGINS=https://viwear.tech,https://api.viwear.tech
+
+    # Google OAuth
+    # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET are set via K8s secrets (env vars)
+    SITE_ID=1
+    ACCOUNT_EMAIL_VERIFICATION=optional
+
+    ####### NEED LATER #######
+
+    #### TG admin alerts ####

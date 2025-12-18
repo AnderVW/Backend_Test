@@ -1,0 +1,288 @@
+{% extends "bases/base.html" %}
+
+{% block title %}User Profile - ViWear{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">User Profile</h1>
+        <p class="mt-1 text-sm text-gray-500">Read and update your user profile</p>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-12">
+        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent"></div>
+        <p class="mt-2 text-sm text-gray-500">Loading profile...</p>
+    </div>
+
+    <!-- Profile Form -->
+    <div id="profileForm" class="hidden bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+        <div class="p-8">
+            <form id="profileUpdateForm" class="space-y-6">
+                
+                <!-- Gender -->
+                <div class="space-y-2">
+                    <label for="gender" class="block text-sm font-medium text-gray-700">
+                        Gender
+                    </label>
+                    <input type="text" 
+                           id="gender" 
+                           name="gender"
+                           class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+                           placeholder="e.g., Male, Female, Other">
+                </div>
+
+                <!-- Profile URL -->
+                <div class="space-y-2">
+                    <label for="profile_url" class="block text-sm font-medium text-gray-700">
+                        Profile URL
+                    </label>
+                    <input type="text" 
+                           id="profile_url" 
+                           name="profile_url"
+                           class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+                           placeholder="https://example.com/profile.jpg">
+                </div>
+
+                <!-- Bio -->
+                <div class="space-y-2">
+                    <label for="bio" class="block text-sm font-medium text-gray-700">
+                        Bio
+                    </label>
+                    <textarea id="bio" 
+                              name="bio"
+                              rows="4" 
+                              class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white resize-vertical"
+                              placeholder="Tell us about yourself..."></textarea>
+                </div>
+
+                <!-- Country -->
+                <div class="space-y-2">
+                    <label for="country" class="block text-sm font-medium text-gray-700">
+                        Country
+                    </label>
+                    <input type="text" 
+                           id="country" 
+                           name="country"
+                           class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+                           placeholder="e.g., USA, UK, Canada">
+                </div>
+
+                <!-- Language -->
+                <div class="space-y-2">
+                    <label for="language" class="block text-sm font-medium text-gray-700">
+                        Language
+                    </label>
+                    <input type="text" 
+                           id="language" 
+                           name="language"
+                           class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+                           placeholder="e.g., en, es, fr">
+                </div>
+
+                <!-- Agree Terms of Service -->
+                <div class="flex items-center space-x-3">
+                    <input type="checkbox" 
+                           id="accepted_tos" 
+                           name="accepted_tos"
+                           class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    <label for="accepted_tos" class="text-sm font-medium text-gray-700">
+                        I agree to the Terms of Service
+                    </label>
+                </div>
+
+                <!-- Read-only Fields -->
+                <div class="border-t border-gray-200 pt-6 space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase">Read-only Fields</h3>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Is Verified</label>
+                            <div id="is_verified" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Is Banned</label>
+                            <div id="is_banned" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Created At</label>
+                            <div id="created_at" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Updated At</label>
+                            <div id="updated_at" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 pt-4">
+                    <button type="button" 
+                            id="loadProfileBtn"
+                            onclick="loadProfile()" 
+                            class="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors">
+                        Reload Profile
+                    </button>
+                    <button type="button" 
+                            id="updateProfileBtn"
+                            onclick="updateProfile()" 
+                            class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                        Update Profile
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div aria-live="polite" aria-atomic="true" class="fixed top-4 right-4 z-50">
+        <div id="toastContainer" class="space-y-2"></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Helper: Get CSRF token
+function getCSRFToken() {
+    return document.cookie.split('; ')
+        .find(row => row.startsWith('csrftoken='))
+        ?.split('=')[1];
+}
+
+// Helper: Show toast notification
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    
+    const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500'
+    };
+    
+    toast.className = `${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg flex items-center justify-between min-w-[300px]`;
+    toast.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">×</button>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 5000);
+}
+
+// Load profile data
+async function loadProfile() {
+    const loadingState = document.getElementById('loadingState');
+    const profileForm = document.getElementById('profileForm');
+    
+    loadingState.classList.remove('hidden');
+    profileForm.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/profile/', {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to load profile');
+        }
+        
+        const data = await response.json();
+        
+        // Populate form fields
+        document.getElementById('gender').value = data.gender || '';
+        document.getElementById('profile_url').value = data.profile_url || '';
+        document.getElementById('bio').value = data.bio || '';
+        document.getElementById('country').value = data.country || '';
+        document.getElementById('language').value = data.language || '';
+        document.getElementById('accepted_tos').checked = data.accepted_tos || false;
+        
+        // Populate read-only fields
+        document.getElementById('is_verified').textContent = data.is_verified ? 'Yes' : 'No';
+        document.getElementById('is_banned').textContent = data.is_banned ? 'Yes' : 'No';
+        document.getElementById('created_at').textContent = data.created_at ? new Date(data.created_at).toLocaleString() : 'N/A';
+        document.getElementById('updated_at').textContent = data.updated_at ? new Date(data.updated_at).toLocaleString() : 'N/A';
+        
+        loadingState.classList.add('hidden');
+        profileForm.classList.remove('hidden');
+        showToast('Profile loaded successfully', 'success');
+        
+    } catch (error) {
+        console.error('Load profile error:', error);
+        showToast(error.message || 'Failed to load profile', 'error');
+        loadingState.classList.add('hidden');
+    }
+}
+
+// Update profile
+async function updateProfile() {
+    const updateBtn = document.getElementById('updateProfileBtn');
+    const originalText = updateBtn.textContent;
+    
+    updateBtn.disabled = true;
+    updateBtn.textContent = 'Updating...';
+    
+    try {
+        const formData = {
+            gender: document.getElementById('gender').value,
+            profile_url: document.getElementById('profile_url').value,
+            bio: document.getElementById('bio').value,
+            country: document.getElementById('country').value,
+            language: document.getElementById('language').value,
+            accepted_tos: document.getElementById('accepted_tos').checked
+        };
+        
+        const response = await fetch('/api/profile/update/', {
+            method: 'PATCH',
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(formData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update profile');
+        }
+        
+        const data = await response.json();
+        
+        // Update read-only fields
+        document.getElementById('is_verified').textContent = data.is_verified ? 'Yes' : 'No';
+        document.getElementById('is_banned').textContent = data.is_banned ? 'Yes' : 'No';
+        document.getElementById('updated_at').textContent = data.updated_at ? new Date(data.updated_at).toLocaleString() : 'N/A';
+        
+        showToast('Profile updated successfully', 'success');
+        
+    } catch (error) {
+        console.error('Update profile error:', error);
+        showToast(error.message || 'Failed to update profile', 'error');
+    } finally {
+        updateBtn.disabled = false;
+        updateBtn.textContent = originalText;
+    }
+}
+
+// Load profile on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadProfile();
+});
+</script>
+{% endblock %}
+
