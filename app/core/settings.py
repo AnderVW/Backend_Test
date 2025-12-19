@@ -37,8 +37,8 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,
 CSRF_TRUSTED_ORIGINS = [
     origin for origin in [
         os.getenv('WEBHOOK_URL'),  # ngrok url in Dev.
-        'http://localhost:8088',
-        'http://127.0.0.1:8088'
+        'http://localhost:8098',
+        'http://127.0.0.1:8098'
     ] if origin
 ]
 
@@ -119,7 +119,7 @@ DATABASES = {
         'USER': os.getenv('DB_USER'),
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'PORT': os.getenv('DB_PORT', '5433'),
         'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', '600')),
         'OPTIONS': {
             'connect_timeout': 10,
@@ -220,11 +220,11 @@ TELEGRAM_ALERT_GROUP_ID = "-xxx"
 TELEGRAM_THREAD_ID = 0000  # viwear Alerts
 
 # Site settings
-SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8088')
+SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8098')
 SITE_ID = int(os.getenv('SITE_ID', '1'))
 
 # Webhook URL for AssemblyAI (use ngrok URL in development)
-WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'http://127.0.0.1:8088')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'http://127.0.0.1:8098')
 
 
 # Default primary key field type
