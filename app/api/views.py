@@ -17,9 +17,9 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from loguru import logger
 
-from .models import Assets, GenerationTask, UploadTask
+from .models import ClothingItem, BaseImage, GeneratedImage, GenerationTask, UploadTask
 from _libs.lib_azure import AzureBlobClient
-from .tasks import detect_clothing_part_task, process_generation_task
+from .tasks import detect_clothing_item_params_task, process_generation_task
 
 User = get_user_model()
 
@@ -218,11 +218,10 @@ def logout(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def init_upload(request):
-    """Initialize upload session - create DB records and generate SAS URLs"""
+def init_clothing_upload(request):
+    """Initialize clothing items upload - create DB records and generate SAS URLs"""
     try:
         files = request.data.get('files', [])
-        category = request.data.get('category', 'item')  # item, body, or generated
         
         if not files:
             return Response(
@@ -233,14 +232,6 @@ def init_upload(request):
         if len(files) > 20:
             return Response(
                 {'error': 'Maximum 20 files per upload'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Validate category
-        valid_categories = ['item', 'body', 'generated']
-        if category not in valid_categories:
-            return Response(
-                {'error': f'Invalid category. Must be one of: {", ".join(valid_categories)}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -267,22 +258,22 @@ def init_upload(request):
             # Generate unique blob name to avoid conflicts
             file_extension = display_name.rsplit('.', 1)[-1] if '.' in display_name else 'jpg'
             blob_name = f"{asset_id}.{file_extension}"
+            azure_blob_name = f"user_{request.user.id}/item/{blob_name}"
             
-            # Create DB record with status='available' (will be verified after upload)
-            asset = Assets.objects.create(
+            # Create ClothingItem
+            asset = ClothingItem.objects.create(
                 user=request.user,
                 asset_id=asset_id,
                 display_name=display_name,
                 file_size=file_size,
                 status='available',
-                category=category,
-                azure_blob_name=f"user_{request.user.id}/{category}/{blob_name}"
+                azure_blob_name=azure_blob_name
             )
             
-            # Create UploadTask for tracking upload process
-            upload_task = UploadTask.objects.create(
+            # Create UploadTask for tracking
+            UploadTask.objects.create(
                 user=request.user,
-                asset=asset,
+                clothing_item=asset,
                 status='uploading'
             )
             
@@ -301,7 +292,7 @@ def init_upload(request):
         sas_urls = azure_client.generate_upload_sas_urls(
             settings.AZURE_CONTAINER_NAME,
             azure_files,
-            category
+            'item'
         )
         
         if not sas_urls:
@@ -321,12 +312,12 @@ def init_upload(request):
                 'expires_in': 3600  # 1 hour
             })
         
-        logger.info(f"Initialized upload for user {request.user.id}: {len(response_data)} files, category: {category}")
+        logger.info(f"Initialized clothing upload for user {request.user.id}: {len(response_data)} files")
         
         return Response({'uploads': response_data}, status=status.HTTP_201_CREATED)
         
     except Exception as e:
-        logger.error(f"Error initializing upload: {e}", exc_info=True)
+        logger.error(f"Error initializing clothing upload: {e}", exc_info=True)
         return Response(
             {'error': 'Failed to initialize upload'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -335,29 +326,39 @@ def init_upload(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def check_upload_status(request, asset_id):
-    """Check upload status for a specific file"""
+def check_clothing_status(request, asset_id):
+    """Check clothing item upload status"""
     try:
-        asset = Assets.objects.get(asset_id=asset_id, user=request.user)
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         
         # Get upload task if exists
-        upload_task = getattr(asset, 'upload_task', None)
+        upload_task = getattr(item, 'upload_task', None)
         
         # If already uploaded, return status
         if upload_task and upload_task.status == 'uploaded':
             return Response({
-                'asset_id': str(asset.asset_id),
+                'asset_id': str(item.asset_id),
                 'status': 'uploaded',
                 'completed_at': upload_task.completed_at,
-                'part': asset.part
+                'type': item.type,
+                'category': item.category,
+                'color': item.color,
+                'subcategory': item.subcategory,
+                'comments': item.comments
             })
         
         # If still uploading, check Azure
         if not upload_task or upload_task.status == 'uploading':
             azure_client = AzureBlobClient()
             is_complete = azure_client.check_upload_complete(
-                asset.azure_blob_name,
-                asset.file_size
+                item.azure_blob_name,
+                item.file_size
             )
             
             if is_complete:
@@ -366,37 +367,29 @@ def check_upload_status(request, asset_id):
                     upload_task.completed_at = timezone.now()
                     upload_task.save()
                 else:
-                    # Create upload task if missing
                     upload_task = UploadTask.objects.create(
                         user=request.user,
-                        asset=asset,
+                        clothing_item=item,
                         status='uploaded',
                         completed_at=timezone.now()
                     )
                 
-                # Log based on category (minimal - task will log processing)
-                if asset.category == 'item':
-                    logger.info(f"[Clothing Upload] [asset {asset_id}] Upload completed, queuing part detection (user: {request.user.id})")
-                    detect_clothing_part_task(str(asset.asset_id))
-                elif asset.category == 'body':
-                    logger.info(f"[Body Upload] [asset {asset_id}] Upload completed (user: {request.user.id})")
-                else:
-                    logger.info(f"[Upload] [asset {asset_id}] Upload completed (user: {request.user.id}, category: {asset.category})")
+                logger.info(f"[Clothing Upload] [asset {asset_id}] Upload completed, queuing type detection (user: {request.user.id})")
+                detect_clothing_item_params_task(str(item.asset_id))
         
         return Response({
-            'asset_id': str(asset.asset_id),
+            'asset_id': str(item.asset_id),
             'status': upload_task.status if upload_task else 'uploading',
             'completed_at': upload_task.completed_at if upload_task else None,
-            'part': asset.part
+            'type': item.type,
+            'category': item.category,
+            'color': item.color,
+            'subcategory': item.subcategory,
+            'comments': item.comments
         })
         
-    except Assets.DoesNotExist:
-        return Response(
-            {'error': 'Upload not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
     except Exception as e:
-        logger.error(f"Error checking upload status: {e}", exc_info=True)
+        logger.error(f"Error checking clothing status: {e}", exc_info=True)
         return Response(
             {'error': 'Failed to check upload status'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -405,85 +398,693 @@ def check_upload_status(request, asset_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def list_assets(request):
-    """List all assets for the current user with read URLs"""
+def list_clothing(request):
+    """List all clothing items for the current user"""
     try:
-        category = request.GET.get('category', None)
-        
-        # Filter by category if provided (only show available assets)
-        if category:
-            assets = Assets.objects.filter(user=request.user, status='available', category=category)
-        else:
-            assets = Assets.objects.filter(user=request.user, status='available')
-        
-        if not assets.exists():
-            return Response({'assets': []})
-        
-        # Get SAS URLs with Redis caching
-        # Generate new SAS URL if not in cache
+        items = ClothingItem.objects.filter(user=request.user, status='available')
         azure_client = AzureBlobClient()
-        sas_urls = azure_client.get_cached_sas_urls(assets)
+        items_data = []
         
-        assets_data = []
-        for asset in assets:
-            # Get upload task for completed_at if exists
-            upload_task = getattr(asset, 'upload_task', None)
-            
-            assets_data.append({
-                'asset_id': str(asset.asset_id),
-                'display_name': asset.display_name,
-                'file_size': asset.file_size,
-                'status': 'uploaded' if upload_task and upload_task.status == 'uploaded' else asset.status,
-                'category': asset.category,
-                'part': asset.part,
-                'url': sas_urls.get(str(asset.asset_id)),
-                'created_at': asset.created_at,
+        for item in items:
+            upload_task = getattr(item, 'upload_task', None)
+            url = azure_client.generate_read_sas_url(
+                settings.AZURE_CONTAINER_NAME,
+                item.azure_blob_name
+            )
+            items_data.append({
+                'asset_id': str(item.asset_id),
+                'display_name': item.display_name,
+                'file_size': item.file_size,
+                'status': 'uploaded' if upload_task and upload_task.status == 'uploaded' else item.status,
+                'type': item.type,
+                'category': item.category,
+                'subcategory': item.subcategory,
+                'color': item.color,
+                'comments': item.comments,
+                'url': url,
+                'created_at': item.created_at,
                 'completed_at': upload_task.completed_at if upload_task else None
             })
         
-        return Response({'assets': assets_data})
+        return Response({'items': items_data})
         
     except Exception as e:
-        logger.error(f"Error listing assets: {e}", exc_info=True)
+        logger.error(f"Error listing clothing items: {e}", exc_info=True)
         return Response(
-            {'error': 'Failed to list assets'},
+            {'error': 'Failed to list clothing items'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_clothing_type(request, asset_id):
+    """Update clothing item type"""
+    try:
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        new_type = request.data.get('type')
+        
+        if not new_type:
+            return Response(
+                {'error': 'Type is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate type choice
+        valid_types = ['upper', 'lower', 'full_set']
+        if new_type not in valid_types:
+            return Response(
+                {'error': f'Invalid type. Must be one of: {", ".join(valid_types)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        item.type = new_type
+        item.save(update_fields=['type'])
+        
+        logger.info(f"Updated clothing item {asset_id} type to {new_type} for user {request.user.id}")
+        
+        return Response({
+            'message': 'Clothing item type updated successfully',
+            'type': item.type
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating clothing item type: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to update clothing item type'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_clothing_category(request, asset_id):
+    """Update clothing item category"""
+    try:
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        new_category = request.data.get('category')
+        
+        if new_category is None:
+            return Response(
+                {'error': 'Category is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Django will handle max_length validation automatically
+        item.category = new_category
+        item.save(update_fields=['category'])
+        
+        logger.info(f"Updated clothing item {asset_id} category to {new_category} for user {request.user.id}")
+        
+        return Response({
+            'message': 'Clothing item category updated successfully',
+            'category': item.category
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating clothing item category: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to update clothing item category'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_clothing_color(request, asset_id):
+    """Update clothing item color"""
+    try:
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        new_color = request.data.get('color')
+        
+        if new_color is None:
+            return Response(
+                {'error': 'Color is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Django will handle max_length validation automatically
+        item.color = new_color
+        item.save(update_fields=['color'])
+        
+        logger.info(f"Updated clothing item {asset_id} color to {new_color} for user {request.user.id}")
+        
+        return Response({
+            'message': 'Clothing item color updated successfully',
+            'color': item.color
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating clothing item color: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to update clothing item color'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_clothing_subcategory(request, asset_id):
+    """Update clothing item subcategory"""
+    try:
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        new_subcategory = request.data.get('subcategory')
+        
+        if new_subcategory is None:
+            return Response(
+                {'error': 'Subcategory is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Django will handle max_length validation automatically
+        item.subcategory = new_subcategory
+        item.save(update_fields=['subcategory'])
+        
+        logger.info(f"Updated clothing item {asset_id} subcategory to {new_subcategory} for user {request.user.id}")
+        
+        return Response({
+            'message': 'Clothing item subcategory updated successfully',
+            'subcategory': item.subcategory
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating clothing item subcategory: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to update clothing item subcategory'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_clothing_comments(request, asset_id):
+    """Update clothing item comments"""
+    try:
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        new_comments = request.data.get('comments')
+        
+        if new_comments is None:
+            return Response(
+                {'error': 'Comments are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Django will handle max_length validation automatically
+        item.comments = new_comments
+        item.save(update_fields=['comments'])
+        
+        logger.info(f"Updated clothing item {asset_id} comments to {new_comments} for user {request.user.id}")
+        
+        return Response({
+            'message': 'Clothing item comments updated successfully',
+            'comments': item.comments
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating clothing item comments: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to update clothing item comments'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def delete_asset(request, asset_id):
-    """Delete an asset"""
+def delete_clothing(request, asset_id):
+    """Delete a clothing item"""
     try:
-        asset = Assets.objects.get(asset_id=asset_id, user=request.user)
+        try:
+            item = ClothingItem.objects.get(asset_id=asset_id, user=request.user)
+        except ClothingItem.DoesNotExist:
+            return Response(
+                {'error': 'Clothing item not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         
-        # Delete from Azure and clear cache
+        # Delete from Azure
         azure_client = AzureBlobClient()
-        azure_client.delete_blob(asset.azure_blob_name)
-        azure_client.clear_asset_cache(request.user.id, asset_id)
+        azure_client.delete_blob(item.azure_blob_name)
         
         # Delete from DB (UploadTask will be deleted via CASCADE)
-        asset.delete()
+        item.delete()
         
-        logger.info(f"Deleted asset {asset_id} for user {request.user.id}")
+        logger.info(f"Deleted clothing item {asset_id} for user {request.user.id}")
         
-        return Response({'message': 'Asset deleted successfully'})
+        return Response({'message': 'Clothing item deleted successfully'})
         
-    except Assets.DoesNotExist:
-        return Response(
-            {'error': 'Asset not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
     except Exception as e:
-        logger.error(f"Error deleting asset: {e}", exc_info=True)
+        logger.error(f"Error deleting clothing item: {e}", exc_info=True)
         return Response(
-            {'error': 'Failed to delete asset'},
+            {'error': 'Failed to delete clothing item'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# ==================== Base Images Management ====================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def init_base_upload(request):
+    """Initialize base images upload - create DB records and generate SAS URLs"""
+    try:
+        files = request.data.get('files', [])
+        
+        if not files:
+            return Response(
+                {'error': 'No files provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(files) > 5:
+            return Response(
+                {'error': 'Maximum 5 files per upload'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate file data
+        for file_data in files:
+            if not file_data.get('name') or not file_data.get('size'):
+                return Response(
+                    {'error': 'Each file must have name and size'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Create Azure client
+        azure_client = AzureBlobClient()
+        
+        # Prepare files list for Azure with unique blob names
+        upload_records = []
+        azure_files = []
+        
+        for file_data in files:
+            asset_id = uuid.uuid4()
+            display_name = file_data['name']
+            file_size = file_data['size']
+            
+            # Generate unique blob name to avoid conflicts
+            file_extension = display_name.rsplit('.', 1)[-1] if '.' in display_name else 'jpg'
+            blob_name = f"{asset_id}.{file_extension}"
+            azure_blob_name = f"user_{request.user.id}/body/{blob_name}"
+            
+            # Create BaseImage
+            asset = BaseImage.objects.create(
+                user=request.user,
+                asset_id=asset_id,
+                display_name=display_name,
+                file_size=file_size,
+                status='available',
+                azure_blob_name=azure_blob_name
+            )
+            
+            # Create UploadTask for tracking
+            UploadTask.objects.create(
+                user=request.user,
+                base_image=asset,
+                status='uploading'
+            )
+            
+            upload_records.append({
+                'asset_id': str(asset_id),
+                'display_name': display_name,
+                'file_size': file_size
+            })
+            
+            azure_files.append({
+                'user_id': request.user.id,
+                'name': blob_name
+            })
+        
+        # Generate SAS URLs for direct upload
+        sas_urls = azure_client.generate_upload_sas_urls(
+            settings.AZURE_CONTAINER_NAME,
+            azure_files,
+            'body'
+        )
+        
+        if not sas_urls:
+            return Response(
+                {'error': 'Failed to generate upload URLs'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Combine records with SAS URLs
+        response_data = []
+        for i, record in enumerate(upload_records):
+            response_data.append({
+                'asset_id': record['asset_id'],
+                'display_name': record['display_name'],
+                'upload_url': sas_urls[i]['url'],
+                'blob_name': sas_urls[i]['blob_name'],
+                'expires_in': 3600  # 1 hour
+            })
+        
+        logger.info(f"Initialized base image upload for user {request.user.id}: {len(response_data)} files")
+        
+        return Response({'uploads': response_data}, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error initializing base upload: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to initialize upload'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
-# ==================== Virtual Fit ====================
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_base_status(request, asset_id):
+    """Check base image upload status"""
+    try:
+        try:
+            base_img = BaseImage.objects.get(asset_id=asset_id, user=request.user)
+        except BaseImage.DoesNotExist:
+            return Response(
+                {'error': 'Base image not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get upload task if exists
+        upload_task = getattr(base_img, 'upload_task', None)
+        
+        # If already uploaded, return status
+        if upload_task and upload_task.status == 'uploaded':
+            return Response({
+                'asset_id': str(base_img.asset_id),
+                'status': 'uploaded',
+                'completed_at': upload_task.completed_at
+            })
+        
+        # If still uploading, check Azure
+        if not upload_task or upload_task.status == 'uploading':
+            azure_client = AzureBlobClient()
+            is_complete = azure_client.check_upload_complete(
+                base_img.azure_blob_name,
+                base_img.file_size
+            )
+            
+            if is_complete:
+                if upload_task:
+                    upload_task.status = 'uploaded'
+                    upload_task.completed_at = timezone.now()
+                    upload_task.save()
+                else:
+                    upload_task = UploadTask.objects.create(
+                        user=request.user,
+                        base_image=base_img,
+                        status='uploaded',
+                        completed_at=timezone.now()
+                    )
+                
+                logger.info(f"[Base Image Upload] [asset {asset_id}] Upload completed (user: {request.user.id})")
+        
+        return Response({
+            'asset_id': str(base_img.asset_id),
+            'status': upload_task.status if upload_task else 'uploading',
+            'completed_at': upload_task.completed_at if upload_task else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking base image status: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to check upload status'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_base(request):
+    """List all base images for the current user"""
+    try:
+        base_images = BaseImage.objects.filter(user=request.user, status='available')
+        azure_client = AzureBlobClient()
+        images_data = []
+        
+        for base_img in base_images:
+            upload_task = getattr(base_img, 'upload_task', None)
+            url = azure_client.generate_read_sas_url(
+                settings.AZURE_CONTAINER_NAME,
+                base_img.azure_blob_name
+            )
+            images_data.append({
+                'asset_id': str(base_img.asset_id),
+                'display_name': base_img.display_name,
+                'file_size': base_img.file_size,
+                'status': 'uploaded' if upload_task and upload_task.status == 'uploaded' else base_img.status,
+                'url': url,
+                'created_at': base_img.created_at,
+                'completed_at': upload_task.completed_at if upload_task else None
+            })
+        
+        return Response({'images': images_data})
+        
+    except Exception as e:
+        logger.error(f"Error listing base images: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to list base images'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_base(request, asset_id):
+    """Delete a base image"""
+    try:
+        try:
+            base_img = BaseImage.objects.get(asset_id=asset_id, user=request.user)
+        except BaseImage.DoesNotExist:
+            return Response(
+                {'error': 'Base image not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Delete from Azure
+        azure_client = AzureBlobClient()
+        azure_client.delete_blob(base_img.azure_blob_name)
+        
+        # Delete from DB (UploadTask will be deleted via CASCADE)
+        base_img.delete()
+        
+        logger.info(f"Deleted base image {asset_id} for user {request.user.id}")
+        
+        return Response({'message': 'Base image deleted successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting base image: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to delete base image'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def generate_virtual_fit(request):
+#     """Queue virtual fit generation task (async)"""
+#     try:
+#         body_asset_id = request.data.get('body_asset_id')
+#         is_body = request.data.get('is_body')
+#         clothing_asset_ids = request.data.get('clothing_asset_ids', [])
+#         generator_type = request.data.get('generator_type')
+        
+#         if not body_asset_id:
+#             return Response(
+#                 {'error': 'Body image Id is required'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         if not clothing_asset_ids or len(clothing_asset_ids) == 0:
+#             return Response(
+#                 {'error': 'At least one clothing item is required'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         if len(clothing_asset_ids) > 2:
+#             return Response(
+#                 {'error': 'Maximum 2 clothing items allowed'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         # Validate generator type
+#         valid_generators = ['gemini', 'vwflux', 'vwcatvton', 'fitroom']
+#         if generator_type not in valid_generators:
+#             return Response(
+#                 {'error': f'Invalid generator_type. Must be one of: {", ".join(valid_generators)}'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         logger.debug(f"[Generation] [user {request.user.id}] Request received - Body: {body_asset_id}, Clothing: item: {clothing_asset_ids}, Generator: {generator_type}")
+        
+       
+#         # Get body asset
+#         try:
+#             if is_body:
+                
+#                 body_asset = Assets.objects.get(
+#                     asset_id=body_asset_id,
+#                     user=request.user,
+#                     category='body',
+#                     status='available'
+#                 )
+#             else: 
+#                 body_asset = Assets.objects.get(
+#                     asset_id = body_asset_id,
+#                     user=request.user,
+#                     category="generated",
+#                     status='available'
+#                 )
+#         except Assets.DoesNotExist:
+#             return Response(
+#                 {'error': 'Body image not found or not available'},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+        
+#         # Get clothing assets
+#         clothing_assets = Assets.objects.filter(
+#             asset_id__in=clothing_asset_ids,
+#             user=request.user,
+#             category='item',
+#             status='available'
+#         )
+        
+#         if clothing_assets.count() != len(clothing_asset_ids):
+#             return Response(
+#                 {'error': 'One or more clothing items not found or not available'},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+        
+#         # Create GenerationTask
+#         clothing_ids = [str(asset.asset_id) for asset in clothing_assets]
+#         generation_task = GenerationTask.objects.create(
+#             user=request.user,
+#             body_asset=body_asset,
+#             clothing_upload_ids=clothing_ids,
+#             generator_type=generator_type,
+#             status='pending'
+#         )
+        
+#         # Queue Huey task
+#         process_generation_task(str(generation_task.task_id))
+        
+#         logger.info(f"[Generation task] {generation_task.task_id} Queued - User: {request.user.id}, Generator: {generator_type}")
+        
+#         return Response({
+#             'task_id': str(generation_task.task_id),
+#             'status': 'pending',
+#             'message': 'Generation task queued successfully'
+#         }, status=status.HTTP_201_CREATED)
+        
+#     except Exception as e:
+#         logger.error(f"[Generation] [user {request.user.id}] Error queuing task: {e}", exc_info=True)
+#         return Response(
+#             {'error': f'Failed to queue generation task: {str(e)}'},
+#             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#         )
+
+
+# ==================== Generated Images Management ====================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_generated(request):
+    """List all generated images for the current user"""
+    try:
+        gen_images = GeneratedImage.objects.filter(user=request.user, status='available')
+        azure_client = AzureBlobClient()
+        images_data = []
+        
+        for gen_img in gen_images:
+            url = azure_client.generate_read_sas_url(
+                settings.AZURE_CONTAINER_NAME,
+                gen_img.azure_blob_name
+            )
+            images_data.append({
+                'asset_id': str(gen_img.asset_id),
+                'display_name': gen_img.display_name,
+                'file_size': gen_img.file_size,
+                'status': gen_img.status,
+                'url': url,
+                'created_at': gen_img.created_at
+            })
+        
+        return Response({'images': images_data})
+        
+    except Exception as e:
+        logger.error(f"Error listing generated images: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to list generated images'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_generated(request, asset_id):
+    """Delete a generated image"""
+    try:
+        try:
+            gen_img = GeneratedImage.objects.get(asset_id=asset_id, user=request.user)
+        except GeneratedImage.DoesNotExist:
+            return Response(
+                {'error': 'Generated image not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Delete from Azure
+        azure_client = AzureBlobClient()
+        azure_client.delete_blob(gen_img.azure_blob_name)
+        
+        # Delete from DB
+        gen_img.delete()
+        
+        logger.info(f"Deleted generated image {asset_id} for user {request.user.id}")
+        
+        return Response({'message': 'Generated image deleted successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting generated image: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to delete generated image'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -520,41 +1121,39 @@ def generate_virtual_fit(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        logger.debug(f"[Generation] [user {request.user.id}] Request received - Body: {body_asset_id}, Clothing: item: {clothing_asset_ids}, Generator: {generator_type}")
+        logger.debug(f"[Generation] [user {request.user.id}] Request received - Body: {body_asset_id}, Clothing: {clothing_asset_ids}, Generator: {generator_type}")
         
-        # Get body asset
+        # Get base image
         try:
-            body_asset = Assets.objects.get(
+            base_image = BaseImage.objects.get(
                 asset_id=body_asset_id,
                 user=request.user,
-                category='body',
                 status='available'
             )
-        except Assets.DoesNotExist:
+        except BaseImage.DoesNotExist:
             return Response(
-                {'error': 'Body image not found or not available'},
+                {'error': 'Base image not found or not available'},
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get clothing assets
-        clothing_assets = Assets.objects.filter(
+        # Get clothing items
+        clothing_items = ClothingItem.objects.filter(
             asset_id__in=clothing_asset_ids,
             user=request.user,
-            category='item',
             status='available'
         )
         
-        if clothing_assets.count() != len(clothing_asset_ids):
+        if clothing_items.count() != len(clothing_asset_ids):
             return Response(
                 {'error': 'One or more clothing items not found or not available'},
                 status=status.HTTP_404_NOT_FOUND
             )
         
         # Create GenerationTask
-        clothing_ids = [str(asset.asset_id) for asset in clothing_assets]
+        clothing_ids = [str(item.asset_id) for item in clothing_items]
         generation_task = GenerationTask.objects.create(
             user=request.user,
-            body_asset=body_asset,
+            base_image=base_image,
             clothing_upload_ids=clothing_ids,
             generator_type=generator_type,
             status='pending'
@@ -614,18 +1213,18 @@ def generation_task_status(request, task_id):
         }
         
         # Add result if completed
-        if task.status == 'completed' and task.result_asset:
+        if task.status == 'completed' and task.result_image:
             azure_client = AzureBlobClient()
             result_url = azure_client.generate_read_sas_url(
                 settings.AZURE_CONTAINER_NAME,
-                task.result_asset.azure_blob_name
+                task.result_image.azure_blob_name
             )
             response_data['result'] = {
-                'asset_id': str(task.result_asset.asset_id),
+                'asset_id': str(task.result_image.asset_id),
                 'url': result_url,
-                'display_name': task.result_asset.display_name,
-                'file_size': task.result_asset.file_size,
-                'created_at': task.result_asset.created_at,
+                'display_name': task.result_image.display_name,
+                'file_size': task.result_image.file_size,
+                'created_at': task.result_image.created_at,
             }
             progress = 100
         

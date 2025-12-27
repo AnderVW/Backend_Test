@@ -3,6 +3,8 @@
 .vscode
 .venv/
 .env
+.env.*
+
 **/node_modules/
 TEST/
 

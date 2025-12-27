@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     # local apps
     'api',
     'userprofile',
+    'clothing'
 ]
 
 MIDDLEWARE = [

@@ -11,12 +11,10 @@ from django.conf import settings
 from huey.contrib.djhuey import db_task
 from loguru import logger
 from django.utils import timezone
-from .models import Assets, GenerationTask
+from .models import ClothingItem, BaseImage, GeneratedImage, GenerationTask
 from _libs.lib_azure import AzureBlobClient
-from _libs.lib_openai import detect_clothing_part
+from _libs.lib_openai import detect_clothing_item_params_ai
 from _libs import lib_aigeneration
-from _libs.lib_prompts import get_gemini_virtual_fit_prompt
-
 
 
 def _get_redis_client():
@@ -39,36 +37,26 @@ def _update_progress(task_id, progress):
 
 
 @db_task()
-def detect_clothing_part_task(asset_id):
+def detect_clothing_item_params_task(asset_id):
     """
-    Async task to detect clothing part using OpenAI Vision
+    Async task to detect clothing type using OpenAI Vision
     
     Args:
-        asset_id: UUID string of the asset to process
+        asset_id: UUID string of the ClothingItem to process
     """
     try:
-        logger.info(f"[Upload Task] Starting clothing part detection for asset {asset_id}")
+        logger.info(f"[Upload Task] Starting clothing type detection for asset {asset_id}")
         
-        # Get asset
+        # Get clothing item
         try:
-            asset = Assets.objects.get(asset_id=asset_id)
-        except Assets.DoesNotExist:
-            logger.error(f"[Upload Task] Asset not found: {asset_id}")
+            item = ClothingItem.objects.get(asset_id=asset_id)
+        except ClothingItem.DoesNotExist:
+            logger.error(f"[Upload Task] ClothingItem not found: {asset_id}")
             return False
-        
-        # Only process clothing items (category='item')
-        if asset.category != 'item':
-            logger.debug(f"[Upload Task] Skipping part detection for non-item category: {asset.category}")
-            return False
-        
-        # Skip if already detected
-        if asset.part:
-            logger.debug(f"[Upload Task] Part already detected for {asset_id}: {asset.part}")
-            return True
         
         # Skip if not available yet
-        if asset.status != 'available':
-            logger.warning(f"[Upload Task] Asset {asset_id} not available yet, status: {asset.status}")
+        if item.status != 'available':
+            logger.warning(f"[Upload Task] ClothingItem {asset_id} not available yet, status: {item.status}")
             return False
         
         # Generate SAS URL to download the image from Azure Storage
@@ -76,30 +64,37 @@ def detect_clothing_part_task(asset_id):
         azure_client = AzureBlobClient()
         sas_url = azure_client.generate_read_sas_url(
             settings.AZURE_CONTAINER_NAME,
-            asset.azure_blob_name
+            item.azure_blob_name
         )
         
         if not sas_url:
             logger.error(f"[Upload Task] Failed to generate SAS URL for {asset_id}")
             return False
         
-        # Detect clothing part using OpenAI Vision API
+        # Detect clothing type using OpenAI Vision API
         logger.debug(f"[Upload Task] Calling OpenAI Vision API for asset {asset_id}")
-        detected_part = detect_clothing_part(sas_url)
-        
-        if detected_part:
-            asset.part = detected_part
-            asset.save(update_fields=['part'])
-            logger.info(f"[Upload Task] Successfully detected part '{detected_part}' for asset {asset_id} (user: {asset.user.id})")
-            return True
-        else:
-            logger.warning(f"[Upload Task] Failed to detect part for asset {asset_id}")
-            return False
+        # detected_type = detect_clothing_part(sas_url)
+        detected_type = detect_clothing_item_params_ai(sas_url)
+
+        # Save the detected type and category to the database
+        item.type = detected_type['type']
+        item.category = detected_type['category']
+        item.color = detected_type['color']
+        item.subcategory = detected_type['subcategory']
+        item.save(update_fields=['type', 'category', 'color', 'subcategory'])
+        logger.info(f"[Upload Task] Successfully detected type '{detected_type['type']}' and category '{detected_type['category']}' and color '{detected_type['color']}' and subcategory '{detected_type['subcategory']}' for asset {asset_id} (user: {item.user.id})")
+        return True
             
     except Exception as e:
-        logger.error(f"[Upload Task] Error in clothing part detection for asset {asset_id}: {e}", exc_info=True)
+        logger.error(f"[Upload Task] Error in clothing type detection for asset {asset_id}: {e}", exc_info=True)
+        # On exception, set to unclassified as fallback
+        try:
+            item.type = 'unclassified'
+            item.save(update_fields=['type'])
+            logger.info(f"[Upload Task] Set type to 'unclassified' for asset {asset_id} due to error")
+        except Exception as save_error:
+            logger.error(f"[Upload Task] Failed to save unclassified type for asset {asset_id}: {save_error}")
         return False
-
 
 @db_task()
 def process_generation_task(task_id):
@@ -126,9 +121,9 @@ def process_generation_task(task_id):
         task.save(update_fields=['status'])
         _update_progress(str(task_id), 5)
         
-        # Validate body asset
-        if not task.body_asset:
-            error_msg = "Body asset not found"
+        # Validate base image
+        if not task.base_image:
+            error_msg = "Base image not found"
             logger.error(f"[Generation Task] Task {task_id} - {error_msg}")
             task.status = 'failed'
             task.error_message = error_msg
@@ -136,16 +131,15 @@ def process_generation_task(task_id):
             task.save()
             return False
         
-        # Get clothing assets
-        clothing_assets = Assets.objects.filter(
+        # Get clothing items
+        clothing_items = ClothingItem.objects.filter(
             asset_id__in=task.clothing_upload_ids,
             user=task.user,
-            category='item',
             status='available'
         )
         
-        if clothing_assets.count() != len(task.clothing_upload_ids):
-            error_msg = "One or more clothing assets not found or not available"
+        if clothing_items.count() != len(task.clothing_upload_ids):
+            error_msg = "One or more clothing items not found or not available"
             logger.error(f"[Generation Task] Task {task_id} - {error_msg}")
             task.status = 'failed'
             task.error_message = error_msg
@@ -153,17 +147,26 @@ def process_generation_task(task_id):
             task.save()
             return False
         
-        logger.debug(f"[Generation Task] Task {task_id} - Validated {len(clothing_assets)} clothing asset(s)")
+        logger.debug(f"[Generation Task] Task {task_id} - Validated {len(clothing_items)} clothing item(s)")
         
         # Get SAS URLs
         azure_client = AzureBlobClient()
-        all_assets = [task.body_asset] + list(clothing_assets)
-        sas_urls = azure_client.get_cached_sas_urls(all_assets)
         
-        body_image_url = sas_urls.get(str(task.body_asset.asset_id))
-        clothing_image_urls = [sas_urls.get(str(asset.asset_id)) for asset in clothing_assets]
+        base_image_url = azure_client.generate_read_sas_url(
+            settings.AZURE_CONTAINER_NAME,
+            task.base_image.azure_blob_name
+        )
         
-        if not body_image_url or not all(clothing_image_urls):
+        clothing_image_urls = []
+        for item in clothing_items:
+            url = azure_client.generate_read_sas_url(
+                settings.AZURE_CONTAINER_NAME,
+                item.azure_blob_name
+            )
+            if url:
+                clothing_image_urls.append(url)
+        
+        if not base_image_url or len(clothing_image_urls) != len(clothing_items):
             error_msg = "Failed to generate image URLs"
             logger.error(f"[Generation Task] Task {task_id} - {error_msg}")
             task.status = 'failed'
@@ -174,9 +177,9 @@ def process_generation_task(task_id):
         
         logger.debug(f"[Generation Task] Task {task_id} - Generated SAS URLs for images")
         
-        # Get part from first clothing asset
-        clothing_asset = clothing_assets.first()
-        part = clothing_asset.part if clothing_asset else None
+        # Get type from first clothing item
+        clothing_item = clothing_items.first()
+        part = clothing_item.type if clothing_item else None
                 
         # Update progress
         _update_progress(str(task_id), 10)
@@ -188,13 +191,13 @@ def process_generation_task(task_id):
             if task.generator_type == 'fitroom':
                 # FitRoom handles progress internally via Redis
                 generated_image_data = _generate_fitroom_with_progress(
-                    task_id, body_image_url, clothing_image_urls[0], part
+                    task_id, base_image_url, clothing_image_urls[0], part
                 )
             else:
                 # Other generators: simulate progress
                 _update_progress(str(task_id), 40)
                 generated_image_data = lib_aigeneration.generate_virtual_fit_sync(
-                    body_image_url,
+                    base_image_url,
                     clothing_image_urls,
                     generator_type=task.generator_type,
                     part=part
@@ -255,24 +258,23 @@ def process_generation_task(task_id):
         
         logger.debug(f"[Generation Task] Task {task_id} - Uploaded to Azure: {azure_blob_name}")
         
-        # Create Assets record
+        # Create GeneratedImage record
         display_name = f"generated_{task.generator_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
-        generated_asset = Assets.objects.create(
+        generated_image = GeneratedImage.objects.create(
             user=task.user,
             asset_id=generated_asset_id,
             azure_blob_name=azure_blob_name,
             file_size=len(generated_image_data),
-            category='generated',
             display_name=display_name,
             status='available'
         )
         
         # Link result to task - reload to get latest provider_task_id
         task.refresh_from_db()
-        task.result_asset = generated_asset
+        task.result_image = generated_image
         task.status = 'completed'
         task.completed_at = timezone.now()
-        task.save(update_fields=['result_asset', 'status', 'completed_at'])
+        task.save(update_fields=['result_image', 'status', 'completed_at'])
         
         # Final progress
         _update_progress(str(task_id), 100)
@@ -292,6 +294,8 @@ def process_generation_task(task_id):
         except Exception:
             pass
         return False
+
+
 
 
 def _generate_fitroom_with_progress(task_id, body_image_url, clothing_image_url, part):

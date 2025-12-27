@@ -377,13 +377,13 @@ async function initiateUpload() {
             size: file.size
         }));
         
-        const response = await fetch('/api/assets/init/', {
+        const response = await fetch('/api/clothing-items/init/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCSRFToken()
             },
-            body: JSON.stringify({ files: filesData, category: 'item' })
+            body: JSON.stringify({ files: filesData })
         });
         
         if (!response.ok) {
@@ -445,7 +445,7 @@ function startPolling(assetId, categoryType = 'item') {
     addAssetPlaceholder(assetId, categoryType);
     
     let pollCount = 0;
-    const maxPolls = categoryType === 'item' ? 30 : 30; // Max 60 seconds (30 * 2s) for upload + part detection for items
+    const maxPolls = categoryType === 'item' ? 30 : 30; // Max 60 seconds (30 * 2s) for upload + type detection for items
     
     const intervalId = setInterval(async () => {
         pollCount++;
@@ -458,7 +458,15 @@ function startPolling(assetId, categoryType = 'item') {
             return;
         }
         try {
-            const response = await fetch(`/api/assets/status/${assetId}/`, {
+            // Use dedicated endpoint based on category
+            let endpoint;
+            if (categoryType === 'item') {
+                endpoint = `/api/clothing-items/status/${assetId}/`;
+            } else if (categoryType === 'body') {
+                endpoint = `/api/base-images/status/${assetId}/`;
+            }
+            
+            const response = await fetch(endpoint, {
                 headers: {
                     'X-CSRFToken': getCSRFToken()
                 }
@@ -473,36 +481,21 @@ function startPolling(assetId, categoryType = 'item') {
             const data = await response.json();
             
             if (data.status === 'uploaded') {
-                // For clothing items, continue polling until part is detected
+                // For clothing items, continue polling only if any parameter is not yet set (detection in progress)
                 if (categoryType === 'item') {
-                    const assetEl = document.getElementById(`asset-${assetId}`);
-                    if (assetEl && !data.part) {
-                        // Still detecting part, keep polling but less frequently
-                        // Update UI to show "Detecting..." if not already shown
-                        const detectingBadge = assetEl.querySelector('.detecting-part');
-                        if (!detectingBadge) {
-                            const infoSection = assetEl.querySelector('.p-3');
-                            if (infoSection) {
-                                const existingBadges = infoSection.querySelector('.flex.items-center.gap-2');
-                                if (existingBadges) {
-                                    const detectingSpan = document.createElement('span');
-                                    detectingSpan.className = 'px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium detecting-part';
-                                    detectingSpan.textContent = 'Detecting...';
-                                    existingBadges.insertBefore(detectingSpan, existingBadges.firstChild);
-                                }
-                            }
-                        }
-                        // Continue polling every 2 seconds for part detection
+                    // If any parameter is null/undefined, detection is still in progress
+                    // If all parameters are set (even if 'unclassified'), detection completed - stop polling
+                    const hasAllParams = data.type && data.category && data.subcategory && data.color;
+                    if (!hasAllParams) {
+                        // Still detecting parameters, keep polling
                         return;
                     }
                 }
                 
-                // Part detected or not a clothing item, stop polling and refresh
+                // All parameters detected (or unclassified for failed detection) or not a clothing item, stop polling and refresh
                 clearInterval(intervalId);
                 state.pollingIntervals.delete(assetId);
-                
-                // Refresh assets list to show final state
-                await loadAssets();
+                await loadAssets(); // Refresh to show detected parameters
             }
             
         } catch (error) {
@@ -548,9 +541,9 @@ async function loadAssets() {
     try {
         // Load all three categories
         const [itemsRes, bodyRes, generatedRes] = await Promise.all([
-            fetch('/api/assets/?category=item', { headers: { 'X-CSRFToken': getCSRFToken() } }),
-            fetch('/api/assets/?category=body', { headers: { 'X-CSRFToken': getCSRFToken() } }),
-            fetch('/api/assets/?category=generated', { headers: { 'X-CSRFToken': getCSRFToken() } })
+            fetch('/api/clothing-items/', { headers: { 'X-CSRFToken': getCSRFToken() } }),
+            fetch('/api/base-images/', { headers: { 'X-CSRFToken': getCSRFToken() } }),
+            fetch('/api/generated-images/', { headers: { 'X-CSRFToken': getCSRFToken() } })
         ]);
         
         if (!itemsRes.ok || !bodyRes.ok || !generatedRes.ok) {
@@ -561,9 +554,9 @@ async function loadAssets() {
         const bodyData = await bodyRes.json();
         const generatedData = await generatedRes.json();
         
-        state.itemAssets = itemsData.assets;
-        state.bodyAssets = bodyData.assets;
-        state.generatedAssets = generatedData.assets;
+        state.itemAssets = itemsData.items || [];
+        state.bodyAssets = bodyData.images || [];
+        state.generatedAssets = generatedData.images || [];
         
         renderAssets();
         
@@ -614,31 +607,85 @@ function renderCategory(categoryId, assets, categoryType) {
         assetEl.id = `asset-${assetId}`;
         assetEl.className = 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow';
         
-        const categoryBadge = categoryType === 'item' ? 'bg-blue-100 text-blue-800' : 
-                             categoryType === 'body' ? 'bg-purple-100 text-purple-800' : 
-                             'bg-green-100 text-green-800';
-        const categoryLabel = categoryType === 'item' ? 'Item' : 
-                             categoryType === 'body' ? 'Body' : 
-                             'Generated';
-        
-        // Part badge for clothing items
-        let partBadge = '';
+        // Type dropdown for clothing items
+        let typeBadge = '';
+        let categoryBadge = '';
+        let subcategoryBadge = '';
+        let colorBadge = '';
         if (categoryType === 'item') {
-            if (asset.part) {
-                const partColors = {
-                    'upper': 'bg-orange-100 text-orange-800',
-                    'lower': 'bg-indigo-100 text-indigo-800',
-                    'full_set': 'bg-pink-100 text-pink-800'
-                };
-                const partLabels = {
-                    'upper': 'Upper',
-                    'lower': 'Lower',
-                    'full_set': 'Full Set'
-                };
-                partBadge = `<span class="px-2 py-1 ${partColors[asset.part]} rounded-full text-xs font-medium">${partLabels[asset.part]}</span>`;
-            } else if (asset.status === 'available') {
-                // Show detecting badge if uploaded but part not yet detected
-                partBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Detecting...</span>`;
+            const currentType = asset.type || '';
+            const currentCategory = asset.category || '';
+            const currentSubcategory = asset.subcategory || '';
+            const currentColor = asset.color || '';
+            
+            // Check if any parameter is missing (detection in progress)
+            const isDetecting = asset.status === 'available' && (!asset.type || !asset.category || !asset.subcategory || !asset.color);
+            
+            if (isDetecting) {
+                // Show detecting badge if uploaded but parameters not set yet
+                typeBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Detecting...</span>`;
+            } else {
+                // Show dropdown for type
+                typeBadge = `
+                    <select 
+                        id="type-select-${assetId}" 
+                        class="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onchange="updateClothingType('${assetId}', this.value)"
+                    >
+                        <option value="" ${!currentType || currentType === 'unclassified' ? 'selected' : ''} disabled>Type...</option>
+                        <option value="upper" ${currentType === 'upper' ? 'selected' : ''}>Upper</option>
+                        <option value="lower" ${currentType === 'lower' ? 'selected' : ''}>Lower</option>
+                        <option value="full_set" ${currentType === 'full_set' ? 'selected' : ''}>Full Set</option>
+                    </select>
+                `;
+                
+                // Category dropdown
+                const categories = ['Tops', 'Bottom', 'Dress', 'ShortJacket', 'LongJacket', 'Miscellaneous'];
+                const categoryOptions = categories.map(cat => 
+                    `<option value="${cat}" ${currentCategory.toLowerCase() === cat.toLowerCase() ? 'selected' : ''}>${cat}</option>`
+                ).join('');
+                categoryBadge = `
+                    <select 
+                        id="category-select-${assetId}" 
+                        class="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onchange="updateClothingCategory('${assetId}', this.value)"
+                    >
+                        <option value="" ${!currentCategory ? 'selected' : ''} disabled>Category...</option>
+                        ${categoryOptions}
+                    </select>
+                `;
+                
+                // Subcategory dropdown
+                const subcategories = ['Shirt', 'T-Shirt', 'Sweater', 'Hoodie', 'Blazer', 'Jacket', 'Sport', 'Trench', 'Coat', 'Jeans', 'Trouser', 'Skirt', 'Short', 'Dress', 'Trousers', 'Other'];
+                const subcategoryOptions = subcategories.map(sub => 
+                    `<option value="${sub}" ${currentSubcategory === sub ? 'selected' : ''}>${sub}</option>`
+                ).join('');
+                subcategoryBadge = `
+                    <select 
+                        id="subcategory-select-${assetId}" 
+                        class="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onchange="updateClothingSubcategory('${assetId}', this.value)"
+                    >
+                        <option value="" ${!currentSubcategory ? 'selected' : ''} disabled>Subcategory...</option>
+                        ${subcategoryOptions}
+                    </select>
+                `;
+                
+                // Color dropdown
+                const colors = ['Black', 'White', 'Grey', 'Beige', 'Brown', 'Burgundy', 'Navy Blue', 'Blue', 'Turquoise', 'Green', 'Olive', 'Orange', 'Yellow', 'Red', 'Pink', 'Lavender', 'Purple', 'Gold', 'Silver', 'Other'];
+                const colorOptions = colors.map(col => 
+                    `<option value="${col}" ${currentColor === col ? 'selected' : ''}>${col}</option>`
+                ).join('');
+                colorBadge = `
+                    <select 
+                        id="color-select-${assetId}" 
+                        class="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onchange="updateClothingColor('${assetId}', this.value)"
+                    >
+                        <option value="" ${!currentColor ? 'selected' : ''} disabled>Color...</option>
+                        ${colorOptions}
+                    </select>
+                `;
             }
         }
         
@@ -685,16 +732,24 @@ function renderCategory(categoryId, assets, categoryType) {
                     </svg>
                 </button>
             </div>
-            <div class="p-3 flex flex-col h-[72px]">
+            <div class="p-3 flex flex-col">
                 <p class="text-sm font-medium text-gray-900 truncate mb-2" title="${displayName}">${displayName}</p>
-                <div class="flex items-start justify-between gap-2 mt-auto">
+                <div class="flex items-start justify-between gap-2 mb-2">
                     <span class="text-xs text-gray-500 flex-shrink-0">${formatFileSize(asset.file_size)}</span>
-                    <div class="flex items-center gap-1 flex-wrap justify-end">
-                        ${partBadge}
-                        ${modelBadge}
-                        <span class="px-2 py-1 ${categoryBadge} rounded-full text-xs whitespace-nowrap">${categoryLabel}</span>
+                    ${modelBadge}
+                </div>
+                ${categoryType === 'item' ? `
+                <div class="flex flex-col gap-1.5 mt-auto">
+                    <div class="flex items-center gap-1 flex-wrap">
+                        ${typeBadge}
+                        ${categoryBadge}
+                    </div>
+                    <div class="flex items-center gap-1 flex-wrap">
+                        ${subcategoryBadge}
+                        ${colorBadge}
                     </div>
                 </div>
+                ` : ''}
             </div>
         `;
         
@@ -715,6 +770,275 @@ function renderCategory(categoryId, assets, categoryType) {
     }
 }
 
+// Update clothing item type
+window.updateClothingType = async function(assetId, newType) {
+    if (!newType) {
+        return;
+    }
+    
+    try {
+        const selectEl = document.getElementById(`type-select-${assetId}`);
+        if (selectEl) {
+            selectEl.disabled = true;
+            selectEl.innerHTML = '<option>Updating...</option>';
+        }
+        
+        const response = await fetch(`/api/clothing-items/update-type/${assetId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ type: newType })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update type');
+        }
+        
+        const data = await response.json();
+        
+        // Update the asset in state
+        const assetIndex = state.itemAssets.findIndex(a => a.asset_id === assetId);
+        if (assetIndex !== -1) {
+            state.itemAssets[assetIndex].type = newType;
+        }
+        
+        // Refresh the assets to show the updated badge
+        await loadAssets();
+        
+        showNotification('Clothing type updated successfully', 'success');
+        
+    } catch (error) {
+        console.error('Update type error:', error);
+        showNotification('Failed to update type: ' + error.message, 'error');
+        
+        // Reset dropdown on error
+        const selectEl = document.getElementById(`type-select-${assetId}`);
+        if (selectEl) {
+            selectEl.disabled = false;
+            const currentType = state.itemAssets.find(a => a.asset_id === assetId)?.type || '';
+            selectEl.innerHTML = `
+                <option value="" ${!currentType || currentType === 'unclassified' ? 'selected' : ''} disabled>Select type...</option>
+                <option value="upper" ${currentType === 'upper' ? 'selected' : ''}>Upper</option>
+                <option value="lower" ${currentType === 'lower' ? 'selected' : ''}>Lower</option>
+                <option value="full_set" ${currentType === 'full_set' ? 'selected' : ''}>Full Set</option>
+            `;
+        }
+    }
+};
+
+// Update clothing item category
+window.updateClothingCategory = async function(assetId, newCategory) {
+    if (!newCategory) {
+        return;
+    }
+    
+    const selectEl = document.getElementById(`category-select-${assetId}`);
+    const categories = ['Tops', 'Bottom', 'Dress', 'ShortJacket', 'LongJacket', 'Miscellaneous'];
+    
+    try {
+        if (selectEl) {
+            selectEl.disabled = true;
+            selectEl.innerHTML = '<option>Updating...</option>';
+        }
+        
+        const response = await fetch(`/api/clothing-items/update-category/${assetId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ category: newCategory })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update category');
+        }
+        
+        const data = await response.json();
+        
+        // Update the asset in state
+        const assetIndex = state.itemAssets.findIndex(a => a.asset_id === assetId);
+        if (assetIndex !== -1) {
+            state.itemAssets[assetIndex].category = newCategory;
+        }
+        
+        // Restore dropdown with new category selected
+        if (selectEl) {
+            selectEl.disabled = false;
+            const categoryOptions = categories.map(cat => 
+                `<option value="${cat}" ${newCategory.toLowerCase() === cat.toLowerCase() ? 'selected' : ''}>${cat}</option>`
+            ).join('');
+            selectEl.innerHTML = `
+                <option value="" ${!newCategory ? 'selected' : ''} disabled>Category...</option>
+                ${categoryOptions}
+            `;
+        }
+        
+        showNotification('Category updated successfully', 'success');
+        
+    } catch (error) {
+        console.error('Update category error:', error);
+        showNotification('Failed to update category: ' + error.message, 'error');
+        
+        // Reset dropdown on error
+        if (selectEl) {
+            selectEl.disabled = false;
+            const currentCategory = state.itemAssets.find(a => a.asset_id === assetId)?.category || '';
+            const categoryOptions = categories.map(cat => 
+                `<option value="${cat}" ${currentCategory.toLowerCase() === cat.toLowerCase() ? 'selected' : ''}>${cat}</option>`
+            ).join('');
+            selectEl.innerHTML = `
+                <option value="" ${!currentCategory ? 'selected' : ''} disabled>Category...</option>
+                ${categoryOptions}
+            `;
+        }
+    }
+};
+
+// Update clothing item subcategory
+window.updateClothingSubcategory = async function(assetId, newSubcategory) {
+    if (!newSubcategory) {
+        return;
+    }
+    
+    const selectEl = document.getElementById(`subcategory-select-${assetId}`);
+    const subcategories = ['Shirt', 'T-Shirt', 'Sweater', 'Hoodie', 'Blazer', 'Jacket', 'Sport', 'Trench', 'Coat', 'Jeans', 'Trouser', 'Skirt', 'Short', 'Dress', 'Trousers', 'Other'];
+    
+    try {
+        if (selectEl) {
+            selectEl.disabled = true;
+            selectEl.innerHTML = '<option>Updating...</option>';
+        }
+        
+        const response = await fetch(`/api/clothing-items/update-subcategory/${assetId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ subcategory: newSubcategory })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update subcategory');
+        }
+        
+        const data = await response.json();
+        
+        // Update the asset in state
+        const assetIndex = state.itemAssets.findIndex(a => a.asset_id === assetId);
+        if (assetIndex !== -1) {
+            state.itemAssets[assetIndex].subcategory = newSubcategory;
+        }
+        
+        // Restore dropdown with new subcategory selected
+        if (selectEl) {
+            selectEl.disabled = false;
+            const subcategoryOptions = subcategories.map(sub => 
+                `<option value="${sub}" ${newSubcategory === sub ? 'selected' : ''}>${sub}</option>`
+            ).join('');
+            selectEl.innerHTML = `
+                <option value="" ${!newSubcategory ? 'selected' : ''} disabled>Subcategory...</option>
+                ${subcategoryOptions}
+            `;
+        }
+        
+        showNotification('Subcategory updated successfully', 'success');
+        
+    } catch (error) {
+        console.error('Update subcategory error:', error);
+        showNotification('Failed to update subcategory: ' + error.message, 'error');
+        
+        // Reset dropdown on error
+        if (selectEl) {
+            selectEl.disabled = false;
+            const currentSubcategory = state.itemAssets.find(a => a.asset_id === assetId)?.subcategory || '';
+            const subcategoryOptions = subcategories.map(sub => 
+                `<option value="${sub}" ${currentSubcategory === sub ? 'selected' : ''}>${sub}</option>`
+            ).join('');
+            selectEl.innerHTML = `
+                <option value="" ${!currentSubcategory ? 'selected' : ''} disabled>Subcategory...</option>
+                ${subcategoryOptions}
+            `;
+        }
+    }
+};
+
+// Update clothing item color
+window.updateClothingColor = async function(assetId, newColor) {
+    if (!newColor) {
+        return;
+    }
+    
+    const selectEl = document.getElementById(`color-select-${assetId}`);
+    const colors = ['Black', 'White', 'Grey', 'Beige', 'Brown', 'Burgundy', 'Navy Blue', 'Blue', 'Turquoise', 'Green', 'Olive', 'Orange', 'Yellow', 'Red', 'Pink', 'Lavender', 'Purple', 'Gold', 'Silver', 'Other'];
+    
+    try {
+        if (selectEl) {
+            selectEl.disabled = true;
+            selectEl.innerHTML = '<option>Updating...</option>';
+        }
+        
+        const response = await fetch(`/api/clothing-items/update-color/${assetId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ color: newColor })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update color');
+        }
+        
+        const data = await response.json();
+        
+        // Update the asset in state
+        const assetIndex = state.itemAssets.findIndex(a => a.asset_id === assetId);
+        if (assetIndex !== -1) {
+            state.itemAssets[assetIndex].color = newColor;
+        }
+        
+        // Restore dropdown with new color selected
+        if (selectEl) {
+            selectEl.disabled = false;
+            const colorOptions = colors.map(col => 
+                `<option value="${col}" ${newColor === col ? 'selected' : ''}>${col}</option>`
+            ).join('');
+            selectEl.innerHTML = `
+                <option value="" ${!newColor ? 'selected' : ''} disabled>Color...</option>
+                ${colorOptions}
+            `;
+        }
+        
+        showNotification('Color updated successfully', 'success');
+        
+    } catch (error) {
+        console.error('Update color error:', error);
+        showNotification('Failed to update color: ' + error.message, 'error');
+        
+        // Reset dropdown on error
+        if (selectEl) {
+            selectEl.disabled = false;
+            const currentColor = state.itemAssets.find(a => a.asset_id === assetId)?.color || '';
+            const colorOptions = colors.map(col => 
+                `<option value="${col}" ${currentColor === col ? 'selected' : ''}>${col}</option>`
+            ).join('');
+            selectEl.innerHTML = `
+                <option value="" ${!currentColor ? 'selected' : ''} disabled>Color...</option>
+                ${colorOptions}
+            `;
+        }
+    }
+};
+
 // Delete asset
 window.deleteAsset = async function(uploadId, categoryType) {
     if (!confirm('Are you sure you want to delete this asset?')) {
@@ -722,7 +1046,17 @@ window.deleteAsset = async function(uploadId, categoryType) {
     }
     
     try {
-        const response = await fetch(`/api/assets/delete/${uploadId}/`, {
+        // Use dedicated endpoint based on category
+        let endpoint;
+        if (categoryType === 'item') {
+            endpoint = `/api/clothing-items/delete/${uploadId}/`;
+        } else if (categoryType === 'body') {
+            endpoint = `/api/base-images/delete/${uploadId}/`;
+        } else if (categoryType === 'generated') {
+            endpoint = `/api/generated-images/delete/${uploadId}/`;
+        }
+        
+        const response = await fetch(endpoint, {
             method: 'DELETE',
             headers: {
                 'X-CSRFToken': getCSRFToken()
@@ -914,13 +1248,13 @@ async function initiateBodyUpload() {
             size: file.size
         }));
         
-        const response = await fetch('/api/assets/init/', {
+        const response = await fetch('/api/base-images/init/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCSRFToken()
             },
-            body: JSON.stringify({ files: filesData, category: 'body' })
+            body: JSON.stringify({ files: filesData })
         });
         
         if (!response.ok) {
@@ -970,4 +1304,3 @@ window.addEventListener('beforeunload', () => {
 });
 </script>
 {% endblock %}
-

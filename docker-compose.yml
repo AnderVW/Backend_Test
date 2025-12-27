@@ -34,7 +34,7 @@ services:
   redis:
     image: redis:7.4.1-alpine
     ports:
-      - 6380:6379
+      - 6379:6379
 
 
 ################ KEEP ALWAYS UNCOMMENTED ############

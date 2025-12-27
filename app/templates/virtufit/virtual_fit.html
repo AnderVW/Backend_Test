@@ -214,7 +214,7 @@ function showNotification(message, type = 'info') {
 // Load images
 async function loadBodyImages() {
     try {
-        const response = await fetch('/api/assets/?category=body', {
+        const response = await fetch('/api/base-images/', {
             method: 'GET',
             credentials: 'same-origin',
             headers: {
@@ -226,7 +226,7 @@ async function loadBodyImages() {
         if (!response.ok) throw new Error('Failed to load body images');
         
         const data = await response.json();
-        state.bodyImages = data.assets;
+        state.bodyImages = data.images || [];
         renderBodyImages();
     } catch (error) {
         console.error('Error loading body images:', error);
@@ -236,7 +236,7 @@ async function loadBodyImages() {
 
 async function loadClothingImages() {
     try {
-        const response = await fetch('/api/assets/?category=item', {
+        const response = await fetch('/api/clothing-items/', {
             method: 'GET',
             credentials: 'same-origin',
             headers: {
@@ -248,7 +248,11 @@ async function loadClothingImages() {
         if (!response.ok) throw new Error('Failed to load clothing images');
         
         const data = await response.json();
-        state.clothingImages = data.assets;
+        // Filter out unclassified items - only show items with valid types (upper, lower, full_set)
+        const validTypes = ['upper', 'lower', 'full_set'];
+        state.clothingImages = (data.items || []).filter(item => 
+            item.type && validTypes.includes(item.type)
+        );
         renderClothingImages();
     } catch (error) {
         console.error('Error loading clothing images:', error);
@@ -258,12 +262,12 @@ async function loadClothingImages() {
 
 async function loadGeneratedImages() {
     try {
-        const response = await fetch('/api/assets/?category=generated', {
+        const response = await fetch('/api/generated-images/', {
             headers: { 'X-CSRFToken': getCSRFToken() }
         });
         if (!response.ok) throw new Error('Failed to load generated images');
         const data = await response.json();
-        state.generatedImages = data.assets;
+        state.generatedImages = data.images || [];
         renderGeneratedImages();
     } catch (error) {
         console.error('Error loading generated images:', error);
@@ -318,29 +322,26 @@ function renderClothingImages() {
         div.className = `relative cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${isSelected ? 'border-blue-600 shadow-lg' : 'border-transparent hover:border-blue-300'}`;
         div.onclick = () => selectClothingImage(assetId);
         
-        // Part badge
-        let partBadge = '';
-        if (asset.part) {
-            const partColors = {
+        // Type badge - only show for valid types (unclassified items are filtered out)
+        let typeBadge = '';
+        if (asset.type) {
+            const typeColors = {
                 'upper': 'bg-orange-500',
                 'lower': 'bg-indigo-500',
                 'full_set': 'bg-pink-500'
             };
-            const partLabels = {
+            const typeLabels = {
                 'upper': 'Upper',
                 'lower': 'Lower',
                 'full_set': 'Full Set'
             };
-            partBadge = `<div class="absolute top-2 left-2 ${partColors[asset.part]} text-white text-xs font-semibold px-2 py-1 rounded shadow-md">${partLabels[asset.part]}</div>`;
-        } else if (asset.status === 'uploaded') {
-            // Show detecting badge if uploaded but part not yet detected
-            partBadge = `<div class="absolute top-2 left-2 bg-gray-500 text-white text-xs font-semibold px-2 py-1 rounded shadow-md">Detecting...</div>`;
+            typeBadge = `<div class="absolute top-2 left-2 ${typeColors[asset.type]} text-white text-xs font-semibold px-2 py-1 rounded shadow-md">${typeLabels[asset.type]}</div>`;
         }
         
         div.innerHTML = `
             <div class="aspect-[3/4] bg-gray-100 relative">
                 <img src="${asset.url}" alt="${asset.display_name}" class="w-full h-full object-contain">
-                ${partBadge}
+                ${typeBadge}
                 ${isSelected ? '<div class="absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg></div>' : ''}
             </div>
         `;
@@ -613,4 +614,3 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
-
